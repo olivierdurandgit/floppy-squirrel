@@ -649,10 +649,25 @@ function draw() {
   }
 }
 
-function loop() {
-  update();
+// Boucle à pas de temps fixe : la logique tourne toujours à 60 Hz en temps réel,
+// quel que soit le taux de rafraîchissement de l'écran (PC, téléphone lent, etc.)
+const STEP_MS = 1000 / 60;   // durée d'un « tick » logique
+let lastTime = null;
+let acc = 0;
+
+function loop(now) {
+  if (lastTime === null) lastTime = now;
+  let elapsed = now - lastTime;
+  lastTime = now;
+  // évite de « rattraper » trop d'un coup (onglet en arrière-plan, gros lag)
+  if (elapsed > 250) elapsed = 250;
+  acc += elapsed;
+  while (acc >= STEP_MS) {
+    update();
+    updateCountdown();
+    acc -= STEP_MS;
+  }
   draw();
-  updateCountdown();
   requestAnimationFrame(loop);
 }
 
@@ -665,7 +680,7 @@ window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
 });
 
-loop();
+requestAnimationFrame(loop);
 </script>
 </body>
 </html>
