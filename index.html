@@ -652,6 +652,7 @@ function draw() {
 // Boucle à pas de temps fixe : la logique tourne toujours à 60 Hz en temps réel,
 // quel que soit le taux de rafraîchissement de l'écran (PC, téléphone lent, etc.)
 const STEP_MS = 1000 / 60;   // durée d'un « tick » logique
+const SPEED_MULT = 2;        // vitesse globale du jeu (2 = deux fois plus rapide)
 let lastTime = null;
 let acc = 0;
 
@@ -661,7 +662,7 @@ function loop(now) {
   lastTime = now;
   // évite de « rattraper » trop d'un coup (onglet en arrière-plan, gros lag)
   if (elapsed > 250) elapsed = 250;
-  acc += elapsed;
+  acc += elapsed * SPEED_MULT;
   while (acc >= STEP_MS) {
     update();
     updateCountdown();
