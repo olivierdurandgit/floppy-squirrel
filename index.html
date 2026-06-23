@@ -596,6 +596,74 @@ function drawFactories() {
   drawFactory(250, baseY, 120, 90, 3);
 }
 
+// ---- Île de déchets plastiques (apparaît après TRASH_AFTER écureuils sauvés) ----
+const TRASH_AFTER = 4;
+let trashItems = null;
+
+// profil de la colline de déchets (hauteur au-dessus du sol selon x)
+function moundHeight(x) {
+  return 70 * Math.sin((x / W) * Math.PI) + 8;
+}
+
+function ensureTrash() {
+  if (trashItems) return;
+  trashItems = [];
+  const colors = ['#3aa0d8', '#54c06a', '#e8e2cf', '#e74c3c', '#f1c40f',
+                  '#9b59b6', '#ffffff', '#2ecc71', '#ff8c42'];
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * W;
+    const y = GROUND_Y + 4 - Math.random() * moundHeight(x);
+    trashItems.push({
+      x, y,
+      type: Math.floor(Math.random() * 3),     // 0 bouteille, 1 bouchon, 2 sac/débris
+      c: colors[Math.floor(Math.random() * colors.length)],
+      s: 4 + Math.random() * 7,
+      rot: Math.random() * Math.PI
+    });
+  }
+  trashItems.sort((a, b) => a.y - b.y);         // du fond vers l'avant
+}
+
+function drawTrashIsland() {
+  ensureTrash();
+  // masse de la colline (tas de déchets compactés)
+  ctx.fillStyle = '#9a937e';
+  ctx.beginPath();
+  ctx.moveTo(0, GROUND_Y + 4);
+  for (let x = 0; x <= W; x += 12) ctx.lineTo(x, GROUND_Y + 4 - moundHeight(x));
+  ctx.lineTo(W, GROUND_Y + 4);
+  ctx.closePath();
+  ctx.fill();
+
+  // débris plastiques colorés
+  ctx.lineWidth = 1;
+  for (const t of trashItems) {
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.rotate(t.rot);
+    ctx.fillStyle = t.c;
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    if (t.type === 0) {
+      // bouteille (corps + goulot)
+      ctx.beginPath();
+      ctx.roundRect(-t.s * 0.4, -t.s, t.s * 0.8, t.s * 2, t.s * 0.3);
+      ctx.fill(); ctx.stroke();
+      ctx.fillRect(-t.s * 0.18, -t.s * 1.35, t.s * 0.36, t.s * 0.4);
+    } else if (t.type === 1) {
+      // bouchon / petit rond
+      ctx.beginPath();
+      ctx.arc(0, 0, t.s * 0.6, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    } else {
+      // sac / débris (forme molle)
+      ctx.beginPath();
+      ctx.ellipse(0, 0, t.s, t.s * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 function drawGround() {
   // sol industriel (terre/béton sombre)
   ctx.fillStyle = '#6e6a58';
@@ -607,8 +675,11 @@ function drawGround() {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
-  drawFactories();
+  // décor : usines, puis île de déchets plastiques une fois 4 écureuils sauvés
+  const trashMode = followers.length >= TRASH_AFTER;
+  if (!trashMode) drawFactories();
   drawGround();
+  if (trashMode) drawTrashIsland();
   // volutes de fumée (obstacles, au premier plan)
   for (const p of pipes) drawPipe(p);
   // grisaille commune (selon les vies perdues)
