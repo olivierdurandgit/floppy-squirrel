@@ -65,7 +65,7 @@
   <div id="overlay">
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
-    <p>La fumée des usines coûte une vie ❤️ (3 max)</p>
+    <p>Évite les tronçonneuses 🪚 — chaque contact coûte une vie ❤️ (3 max)</p>
     <div class="hint">Clique pour commencer</div>
   </div>
 </div>
@@ -190,14 +190,14 @@ function showReady() {
   overlay.innerHTML = `
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
-    <p>La fumée des usines coûte une vie ❤️ (3 max)</p>
+    <p>Évite les tronçonneuses 🪚 — chaque contact coûte une vie ❤️ (3 max)</p>
     <div class="hint">Clique pour commencer</div>`;
 }
 
 function showDead(cause) {
   const msg = cause === 'ground'
     ? 'Floppy a mangé le sol'
-    : 'Floppy a inhalé trop de fumée';
+    : 'Floppy a fini en bûches';
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
     <h1>💥 Perdu !</h1>
@@ -318,38 +318,72 @@ function update() {
   });
 }
 
-// Une volute : empilement de bouffées de fumée grises translucides entre y0 et y1
-function drawSmokeRegion(cx, y0, y1, seed) {
-  const step = 16;
+// Une tronçonneuse : moteur ancré au mur (baseY), lame + chaîne tendue vers tipY (le passage).
+function drawChainsaw(cx, baseY, tipY) {
+  const dir = tipY >= baseY ? 1 : -1;
+  const L = Math.abs(tipY - baseY);
   ctx.save();
-  for (let y = y0; y <= y1; y += step) {
-    const k = (y - y0) / step;
-    // tourbillon : décalage horizontal animé + déterministe par seed
-    const swirl = Math.sin(k * 1.3 + seed) * 16 + Math.sin(frame * 0.03 + k * 0.7 + seed) * 6;
-    const cxk = cx + swirl;
-    // plusieurs cercles superposés pour un rendu cotonneux
-    const puffs = [
-      { dx: 0,   r: 24, c: 'rgba(110,110,114,0.55)' },
-      { dx: -10, r: 17, c: 'rgba(140,140,144,0.45)' },
-      { dx: 12,  r: 19, c: 'rgba(95,95,100,0.50)' },
-      { dx: 2,   r: 13, c: 'rgba(170,170,174,0.40)' }
-    ];
-    for (const pu of puffs) {
-      ctx.fillStyle = pu.c;
-      ctx.beginPath();
-      ctx.arc(cxk + pu.dx, y, pu.r, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  ctx.translate(cx, baseY);
+  ctx.scale(1, dir);            // dessine toujours « vers l'intérieur » (y positif)
+
+  const barW = 20;
+  const motorL = Math.min(54, L * 0.5);
+  const barStart = motorL * 0.4;
+
+  // lame (guide) argentée
+  ctx.fillStyle = '#cfd3d6';
+  ctx.strokeStyle = '#3a3a3a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-barW / 2, barStart, barW, L - barStart, barW / 2);
+  ctx.fill();
+  ctx.stroke();
+  // rainure centrale
+  ctx.strokeStyle = '#9aa0a4';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, barStart + 6);
+  ctx.lineTo(0, L - 8);
+  ctx.stroke();
+
+  // dents de la chaîne (le long des deux bords)
+  ctx.fillStyle = '#2b2b2b';
+  for (let y = barStart + 6; y < L - 6; y += 9) {
+    ctx.beginPath();
+    ctx.moveTo(-barW / 2, y); ctx.lineTo(-barW / 2 - 5, y + 2.5); ctx.lineTo(-barW / 2, y + 5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(barW / 2, y); ctx.lineTo(barW / 2 + 5, y + 2.5); ctx.lineTo(barW / 2, y + 5);
+    ctx.closePath(); ctx.fill();
   }
+
+  // carter moteur (orange)
+  ctx.fillStyle = '#e8731c';
+  ctx.strokeStyle = '#9f4d10';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-28, -8, 56, motorL + 8, 9);
+  ctx.fill();
+  ctx.stroke();
+  // grilles d'aération
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  for (let i = 0; i < 3; i++) ctx.fillRect(-19 + i * 13, motorL * 0.35, 7, motorL * 0.4);
+  // poignée
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(0, motorL * 0.55, 19, Math.PI * 0.12, Math.PI * 0.88);
+  ctx.stroke();
+
   ctx.restore();
 }
 
 function drawPipe(p) {
   const cx = p.x + PIPE_W / 2;
-  // volute du haut (du plafond jusqu'au bord du passage)
-  drawSmokeRegion(cx, -10, p.top, p.seed);
-  // volute du bas (du bord du passage jusqu'au sol)
-  drawSmokeRegion(cx, p.top + PIPE_GAP, GROUND_Y, p.seed + 5);
+  // tronçonneuse du haut (moteur au plafond, lame vers le bas)
+  drawChainsaw(cx, -8, p.top);
+  // tronçonneuse du bas (moteur au sol, lame vers le haut)
+  drawChainsaw(cx, GROUND_Y, p.top + PIPE_GAP);
 }
 
 // Mélange deux couleurs RGB ([r,g,b]) selon t (0 = c1, 1 = c2)
@@ -596,71 +630,63 @@ function drawFactories() {
   drawFactory(250, baseY, 120, 90, 3);
 }
 
-// ---- Île de déchets plastiques (apparaît après TRASH_AFTER écureuils sauvés) ----
-const TRASH_AFTER = 4;
-let trashItems = null;
+// ---- Forêt coupée (apparaît après FOREST_AFTER écureuils sauvés) ----
+const FOREST_AFTER = 4;
+let forestItems = null;
 
-// profil de la colline de déchets (hauteur au-dessus du sol selon x)
-function moundHeight(x) {
-  return 70 * Math.sin((x / W) * Math.PI) + 8;
-}
-
-function ensureTrash() {
-  if (trashItems) return;
-  trashItems = [];
-  const colors = ['#3aa0d8', '#54c06a', '#e8e2cf', '#e74c3c', '#f1c40f',
-                  '#9b59b6', '#ffffff', '#2ecc71', '#ff8c42'];
-  for (let i = 0; i < 90; i++) {
-    const x = Math.random() * W;
-    const y = GROUND_Y + 4 - Math.random() * moundHeight(x);
-    trashItems.push({
-      x, y,
-      type: Math.floor(Math.random() * 3),     // 0 bouteille, 1 bouchon, 2 sac/débris
-      c: colors[Math.floor(Math.random() * colors.length)],
-      s: 4 + Math.random() * 7,
-      rot: Math.random() * Math.PI
+function ensureForest() {
+  if (forestItems) return;
+  forestItems = [];
+  for (let i = 0; i < 8; i++) {
+    forestItems.push({
+      x: 24 + Math.random() * (W - 48),
+      h: 16 + Math.random() * 28,          // hauteur de souche
+      w: 16 + Math.random() * 16,          // largeur du tronc
+      type: Math.random() < 0.4 ? 'log' : 'stump'
     });
   }
-  trashItems.sort((a, b) => a.y - b.y);         // du fond vers l'avant
+  forestItems.sort((a, b) => a.x - b.x);
 }
 
-function drawTrashIsland() {
-  ensureTrash();
-  // masse de la colline (tas de déchets compactés)
-  ctx.fillStyle = '#9a937e';
-  ctx.beginPath();
-  ctx.moveTo(0, GROUND_Y + 4);
-  for (let x = 0; x <= W; x += 12) ctx.lineTo(x, GROUND_Y + 4 - moundHeight(x));
-  ctx.lineTo(W, GROUND_Y + 4);
-  ctx.closePath();
-  ctx.fill();
-
-  // débris plastiques colorés
+// anneaux de croissance sur une surface de coupe (ellipse)
+function drawRings(cx, cy, rx, ry) {
+  ctx.fillStyle = '#c79a68';
+  ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#9a6b3c';
   ctx.lineWidth = 1;
-  for (const t of trashItems) {
-    ctx.save();
-    ctx.translate(t.x, t.y);
-    ctx.rotate(t.rot);
-    ctx.fillStyle = t.c;
-    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-    if (t.type === 0) {
-      // bouteille (corps + goulot)
-      ctx.beginPath();
-      ctx.roundRect(-t.s * 0.4, -t.s, t.s * 0.8, t.s * 2, t.s * 0.3);
-      ctx.fill(); ctx.stroke();
-      ctx.fillRect(-t.s * 0.18, -t.s * 1.35, t.s * 0.36, t.s * 0.4);
-    } else if (t.type === 1) {
-      // bouchon / petit rond
-      ctx.beginPath();
-      ctx.arc(0, 0, t.s * 0.6, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
+  for (let k = 1; k <= 3; k++) {
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx * (k / 3.5), ry * (k / 3.5), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
+function drawCutForest() {
+  ensureForest();
+  const g = GROUND_Y;
+  for (const it of forestItems) {
+    if (it.type === 'stump') {
+      // tronc coupé droit
+      ctx.fillStyle = '#6b4a2b';
+      ctx.strokeStyle = '#3f2a16';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(it.x - it.w / 2, g - it.h, it.w, it.h);
+      ctx.strokeRect(it.x - it.w / 2, g - it.h, it.w, it.h);
+      // surface de coupe + anneaux
+      drawRings(it.x, g - it.h, it.w / 2, it.w / 5);
     } else {
-      // sac / débris (forme molle)
+      // tronc abattu, couché au sol
+      const len = it.w * 3.2, r = it.w * 0.45;
+      const y = g - r - 1;
+      ctx.fillStyle = '#6b4a2b';
+      ctx.strokeStyle = '#3f2a16';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.ellipse(0, 0, t.s, t.s * 0.6, 0, 0, Math.PI * 2);
+      ctx.roundRect(it.x - len / 2, y - r, len, r * 2, r);
       ctx.fill(); ctx.stroke();
+      // bout coupé (anneaux) à droite
+      drawRings(it.x + len / 2, y, r * 0.55, r);
     }
-    ctx.restore();
   }
 }
 
@@ -675,11 +701,11 @@ function drawGround() {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
-  // décor : usines, puis île de déchets plastiques une fois 4 écureuils sauvés
-  const trashMode = followers.length >= TRASH_AFTER;
-  if (!trashMode) drawFactories();
+  // décor : usines, puis forêt coupée une fois 4 écureuils sauvés
+  const forestMode = followers.length >= FOREST_AFTER;
+  if (!forestMode) drawFactories();
   drawGround();
-  if (trashMode) drawTrashIsland();
+  if (forestMode) drawCutForest();
   // volutes de fumée (obstacles, au premier plan)
   for (const p of pipes) drawPipe(p);
   // grisaille commune (selon les vies perdues)
