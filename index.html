@@ -518,8 +518,8 @@ function spawnPipe() {
     if (Math.random() < 0.06) {
       // champignon hallucinogène
       mushrooms.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
-    } else if (Math.random() < 0.06) {
-      // burger (même chance) : ralentit + alourdit
+    } else if (Math.random() < 0.035) {
+      // burger (plus rare) : ralentit + alourdit
       weights.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
     }
   }
@@ -577,7 +577,7 @@ function showDead(cause) {
   const msg = (Date.now() < tripUntil)
     ? 'Il vaut mieux éviter de manger certaines choses…'
     : (Date.now() < slowUntil)
-      ? 'Le burger a un peu trop alourdi Floppy'
+      ? (cause === 'ground' ? 'Floppy a coulé comme une pierre' : 'Le burger a un peu trop alourdi Floppy')
       : (cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg);
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
