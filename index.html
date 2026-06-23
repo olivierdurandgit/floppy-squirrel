@@ -124,6 +124,11 @@ let invincibleUntil = 0;       // timestamp ms : invincibilité après avoir pri
 const HIT_INVINCIBLE = 1100;   // durée d'invincibilité après contact avec la fumée (ms)
 let nextLifeAt = 50;           // prochain palier de score qui donne une vie bonus
 const LIFE_EVERY = 50;
+// --- Décors « catastrophe » : tirés au hasard tous les 4 écureuils sauvés ---
+const SCENE_EVERY = 4;                 // change de décor tous les 4 écureuils
+const SCENES = ['forest', 'lake'];     // forêt coupée / lac asséché
+let scene = null;                      // décor actif (null = usines au début)
+let nextSceneChange = SCENE_EVERY;
 
 function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
@@ -139,6 +144,8 @@ function reset() {
   invincibleUntil = 0;
   nextLifeAt = LIFE_EVERY;
   speed = BASE_SPEED;
+  scene = null;
+  nextSceneChange = SCENE_EVERY;
 }
 
 function spawnPipe() {
@@ -195,9 +202,11 @@ function showReady() {
 }
 
 function showDead(cause) {
-  const obstacleMsg = followers.length >= FOREST_AFTER
+  const obstacleMsg = scene === 'forest'
     ? 'Floppy a fini en bûches'
-    : 'Floppy a inhalé trop de fumée';
+    : scene === 'lake'
+      ? 'Floppy a fini à sec'
+      : 'Floppy a inhalé trop de fumée';
   const msg = cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg;
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
@@ -308,6 +317,12 @@ function update() {
     nextLifeAt += LIFE_EVERY;
   }
 
+  // Tous les 4 écureuils sauvés : on tire un nouveau décor catastrophe au hasard
+  while (followers.length >= nextSceneChange) {
+    scene = SCENES[Math.floor(Math.random() * SCENES.length)];
+    nextSceneChange += SCENE_EVERY;
+  }
+
   // Oiseaux qui suivent : file indienne derrière le gros oiseau (décalés vers la gauche),
   // avec une hauteur qui reprend la trajectoire passée du gros oiseau (effet ondulant)
   const SPACING_PX = 22;
@@ -405,12 +420,12 @@ function drawChainsaw(cx, baseY, tipY) {
 
 function drawPipe(p) {
   const cx = p.x + PIPE_W / 2;
-  if (followers.length >= FOREST_AFTER) {
+  if (scene === 'forest') {
     // décor forêt : tronçonneuses (haut = moteur au plafond, bas = moteur au sol)
     drawChainsaw(cx, -8, p.top);
     drawChainsaw(cx, GROUND_Y, p.top + PIPE_GAP);
   } else {
-    // début : volutes de fumée
+    // autres décors : volutes de fumée
     drawSmokeRegion(cx, -10, p.top, p.seed);
     drawSmokeRegion(cx, p.top + PIPE_GAP, GROUND_Y, p.seed + 5);
   }
@@ -660,8 +675,7 @@ function drawFactories() {
   drawFactory(250, baseY, 120, 90, 3);
 }
 
-// ---- Forêt coupée (apparaît après FOREST_AFTER écureuils sauvés) ----
-const FOREST_AFTER = 4;
+// ---- Forêt coupée (un des décors catastrophe) ----
 let forestItems = null;
 
 function ensureForest() {
@@ -811,6 +825,92 @@ function drawCutForest() {
   }
 }
 
+// ---- Lac asséché (un des décors catastrophe) ----
+let lakeItems = null;
+
+function ensureLake() {
+  if (lakeItems) return;
+  lakeItems = { cracks: [], fish: [] };
+  // fissures de la boue séchée (segments ramifiés)
+  const bedTop = GROUND_Y - 4;
+  for (let i = 0; i < 16; i++) {
+    const x = Math.random() * W;
+    const y = bedTop + Math.random() * (H - bedTop);
+    const ang = Math.random() * Math.PI * 2;
+    const len = 12 + Math.random() * 26;
+    lakeItems.cracks.push({ x, y, ang, len });
+    // petite branche
+    lakeItems.cracks.push({ x, y, ang: ang + 1.6, len: len * 0.6 });
+  }
+  // poissons morts échoués sur la vase
+  for (let i = 0; i < 5; i++) {
+    lakeItems.fish.push({
+      x: 30 + Math.random() * (W - 60),
+      y: GROUND_Y + 6 + Math.random() * (H - GROUND_Y - 14),
+      size: 9 + Math.random() * 7,
+      rot: (Math.random() - 0.5) * 0.8,
+      c: ['#9aa6ae', '#a7926b', '#b0b6ba'][Math.floor(Math.random() * 3)]
+    });
+  }
+}
+
+// poisson mort (couché, ventre exposé, œil en croix)
+function drawDeadFish(x, y, size, rot, c) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.fillStyle = c;
+  ctx.strokeStyle = '#4a4036';
+  ctx.lineWidth = 1.3;
+  // corps
+  ctx.beginPath();
+  ctx.ellipse(0, 0, size, size * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // queue
+  ctx.beginPath();
+  ctx.moveTo(-size, 0);
+  ctx.lineTo(-size * 1.5, -size * 0.45);
+  ctx.lineTo(-size * 1.5, size * 0.45);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // arêtes ventrales
+  ctx.beginPath();
+  for (let i = -1; i <= 2; i++) { ctx.moveTo(i * size * 0.4, -size * 0.2); ctx.lineTo(i * size * 0.4, size * 0.2); }
+  ctx.stroke();
+  // œil en croix
+  const ex = size * 0.6, e = size * 0.13;
+  ctx.beginPath();
+  ctx.moveTo(ex - e, -e * 0.5 - size * 0.05); ctx.lineTo(ex + e, e * 0.5 - size * 0.05);
+  ctx.moveTo(ex + e, -e * 0.5 - size * 0.05); ctx.lineTo(ex - e, e * 0.5 - size * 0.05);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawDriedLake() {
+  ensureLake();
+  const bedTop = GROUND_Y - 4;
+  // lit du lac : vase craquelée beige
+  ctx.fillStyle = '#bca972';
+  ctx.fillRect(0, bedTop, W, H - bedTop);
+  // ancienne rive (creux plus sombre vers le centre)
+  ctx.fillStyle = 'rgba(120,100,60,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(W / 2, H, W * 0.55, (H - bedTop) * 1.6, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  // fissures
+  ctx.strokeStyle = '#8a744a';
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = 'round';
+  for (const cr of lakeItems.cracks) {
+    ctx.beginPath();
+    ctx.moveTo(cr.x, cr.y);
+    ctx.lineTo(cr.x + Math.cos(cr.ang) * cr.len, cr.y + Math.sin(cr.ang) * cr.len);
+    ctx.stroke();
+  }
+  // poissons morts
+  for (const f of lakeItems.fish) drawDeadFish(f.x, f.y, f.size, f.rot, f.c);
+}
+
 function drawGround() {
   // sol industriel (terre/béton sombre)
   ctx.fillStyle = '#6e6a58';
@@ -822,12 +922,12 @@ function drawGround() {
 function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
-  // décor : usines, puis forêt coupée une fois 4 écureuils sauvés
-  const forestMode = followers.length >= FOREST_AFTER;
-  if (!forestMode) drawFactories();
+  // décor : usines au début, puis un décor catastrophe tiré au hasard tous les 4 écureuils
+  if (scene === null) drawFactories();
   drawGround();
-  if (forestMode) drawCutForest();
-  // volutes de fumée (obstacles, au premier plan)
+  if (scene === 'forest') drawCutForest();
+  else if (scene === 'lake') drawDriedLake();
+  // obstacles au premier plan
   for (const p of pipes) drawPipe(p);
   // grisaille commune (selon les vies perdues)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
