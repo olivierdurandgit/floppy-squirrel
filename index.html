@@ -114,13 +114,38 @@
     border-radius: 10px;
     box-shadow: 0 4px 14px rgba(0,0,0,.4);
   }
+  #tabs {
+    display: flex;
+    gap: 6px;
+  }
+  .tab {
+    border: none;
+    border-radius: 16px;
+    background: rgba(255,255,255,.18);
+    color: #fff;
+    font-size: 13px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  .tab.active { background: #fff; color: #222; font-weight: bold; }
   #shirtOptions {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 10px;
     max-width: 320px;
+    min-height: 44px;
   }
+  .optBtn {
+    border: 3px solid transparent;
+    border-radius: 16px;
+    background: rgba(255,255,255,.2);
+    color: #fff;
+    font-size: 13px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  .optBtn.selected { border-color: #fff; background: rgba(255,255,255,.35); font-weight: bold; }
   .swatch {
     width: 38px;
     height: 38px;
@@ -170,8 +195,13 @@
   <button id="pauseBtn" aria-label="Pause">⏸</button>
   <button id="homeBtn">🏠 Accueil</button>
   <div id="customize" class="hidden">
-    <h2>👕 Personnalisation</h2>
+    <h2>🎨 Personnalisation</h2>
     <canvas id="preview" width="180" height="130"></canvas>
+    <div id="tabs">
+      <button class="tab" data-tab="shirt">👕 T-shirt</button>
+      <button class="tab" data-tab="hat">🎩 Chapeau</button>
+      <button class="tab" data-tab="glasses">🕶️ Lunettes</button>
+    </div>
     <div id="shirtOptions"></div>
     <button id="closeCustomize">Valider</button>
   </div>
@@ -203,9 +233,28 @@ const SHIRTS = [
   { name: 'Rose',   color: [255, 111, 174] },
   { name: 'Noir',   color: [52, 52, 60] }
 ];
+const HATS = [
+  { name: 'Aucun', type: null },
+  { name: 'Melon', type: 'bowler' },
+  { name: 'Anniversaire', type: 'party' },
+  { name: 'Casquette', type: 'cap' },
+  { name: 'Perruque', type: 'wig' }
+];
+const GLASSES = [
+  { name: 'Aucune', type: null },
+  { name: 'Soleil', type: 'sun' },
+  { name: 'Rondes', type: 'round' },
+  { name: '3D', type: '3d' }
+];
 let shirtIndex = Number(localStorage.getItem('floppyShirt') || 0);
+let hatIndex = Number(localStorage.getItem('floppyHat') || 0);
+let glassesIndex = Number(localStorage.getItem('floppyGlasses') || 0);
 if (!(shirtIndex >= 0 && shirtIndex < SHIRTS.length)) shirtIndex = 0;
+if (!(hatIndex >= 0 && hatIndex < HATS.length)) hatIndex = 0;
+if (!(glassesIndex >= 0 && glassesIndex < GLASSES.length)) glassesIndex = 0;
 function currentShirtColor() { return SHIRTS[shirtIndex].color; }
+function currentHatType() { return HATS[hatIndex].type; }
+function currentGlassesType() { return GLASSES[glassesIndex].type; }
 
 // --- Paramètres du jeu ---
 const GRAVITY = 0.13;
@@ -303,41 +352,65 @@ const previewCanvas = document.getElementById('preview');
 const previewCtx = previewCanvas.getContext('2d');
 const shirtOptionsEl = document.getElementById('shirtOptions');
 
+let currentTab = 'shirt';
+
 function drawPreview() {
   previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
   const saved = ctx;
   ctx = previewCtx;                 // drawSquirrel dessine sur le canvas d'aperçu
   ctx.save();
   ctx.translate(previewCanvas.width / 2 - 12, previewCanvas.height / 2 + 6);
-  drawSquirrel(20, [150, 92, 50], [38, 24, 14], 0, currentShirtColor());
+  drawSquirrel(20, [150, 92, 50], [38, 24, 14], 0,
+    currentShirtColor(), currentHatType(), currentGlassesType());
   ctx.restore();
   ctx = saved;
 }
 
-function buildShirtOptions() {
+function buildOptions() {
   shirtOptionsEl.innerHTML = '';
-  SHIRTS.forEach((s, i) => {
-    const el = document.createElement('div');
-    el.className = 'swatch' + (s.color ? '' : ' none') + (i === shirtIndex ? ' selected' : '');
-    el.title = s.name;
-    if (s.color) el.style.background = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
-    else el.textContent = '∅';
-    el.addEventListener('click', () => {
-      shirtIndex = i;
-      localStorage.setItem('floppyShirt', i);
-      buildShirtOptions();
-      drawPreview();
+  // onglet actif
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.tab === currentTab));
+
+  if (currentTab === 'shirt') {
+    SHIRTS.forEach((s, i) => {
+      const el = document.createElement('div');
+      el.className = 'swatch' + (s.color ? '' : ' none') + (i === shirtIndex ? ' selected' : '');
+      el.title = s.name;
+      if (s.color) el.style.background = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
+      else el.textContent = '∅';
+      el.addEventListener('click', () => {
+        shirtIndex = i; localStorage.setItem('floppyShirt', i);
+        buildOptions(); drawPreview();
+      });
+      shirtOptionsEl.appendChild(el);
     });
-    shirtOptionsEl.appendChild(el);
-  });
+  } else {
+    const list = currentTab === 'hat' ? HATS : GLASSES;
+    const sel = currentTab === 'hat' ? hatIndex : glassesIndex;
+    list.forEach((o, i) => {
+      const el = document.createElement('button');
+      el.className = 'optBtn' + (i === sel ? ' selected' : '');
+      el.textContent = o.name;
+      el.addEventListener('click', () => {
+        if (currentTab === 'hat') { hatIndex = i; localStorage.setItem('floppyHat', i); }
+        else { glassesIndex = i; localStorage.setItem('floppyGlasses', i); }
+        buildOptions(); drawPreview();
+      });
+      shirtOptionsEl.appendChild(el);
+    });
+  }
 }
 
 function openCustomize() {
   overlay.classList.add('hidden');
   customizeEl.classList.remove('hidden');
-  buildShirtOptions();
+  buildOptions();
   drawPreview();
 }
+
+document.querySelectorAll('.tab').forEach(t =>
+  t.addEventListener('click', () => { currentTab = t.dataset.tab; buildOptions(); }));
 
 function closeCustomize() {
   customizeEl.classList.add('hidden');
@@ -683,7 +756,7 @@ function mix(c1, c2, t) {
 
 // Dessine un écureuil volant (façon illustration) centré sur l'origine, orienté vers la droite.
 // r = taille, bodyRgb/strokeRgb = couleur, dmg = grisaille (0 normal → 1 tout gris)
-function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt) {
+function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses) {
   const grey = [110, 110, 110];
   const body = mix(bodyRgb, grey, dmg);
   const stroke = mix(strokeRgb, [60, 60, 60], dmg);
@@ -827,6 +900,9 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt) {
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(r * 1.76, -r * 0.46, r * 0.05, 0, Math.PI * 2); ctx.fill();
 
+  // ---- LUNETTES (optionnel) ----
+  if (glasses) drawGlasses(r, glasses);
+
   // ---- NEZ ----
   ctx.fillStyle = '#3a261a';
   ctx.beginPath(); ctx.ellipse(r * 2.42, r * 0.02, r * 0.13, r * 0.1, 0, 0, Math.PI * 2); ctx.fill();
@@ -840,9 +916,122 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt) {
   ctx.moveTo(r * 2.2, r * 0.18); ctx.quadraticCurveTo(r * 2.8, r * 0.35, r * 3.1, r * 0.55);
   ctx.stroke();
 
+  // ---- CHAPEAU (optionnel) : par-dessus la tête ----
+  if (hat) drawHat(r, hat);
+
   // restaure les réglages de trait
   ctx.strokeStyle = stroke;
   ctx.lineWidth = Math.max(1.2, r * 0.13);
+}
+
+// Lunettes (coordonnées locales de l'écureuil, œil ~ (1.65r, -0.42r))
+function drawGlasses(r, type) {
+  const ex = r * 1.65, ey = r * -0.42, lr = r * 0.34;
+  ctx.lineWidth = Math.max(1.2, r * 0.08);
+  // branche vers l'oreille
+  ctx.strokeStyle = '#222';
+  ctx.beginPath();
+  ctx.moveTo(ex - lr * 0.7, ey - lr * 0.3);
+  ctx.lineTo(r * 1.1, ey - lr * 0.2);
+  ctx.stroke();
+  if (type === 'sun') {
+    ctx.fillStyle = '#181c22';
+    ctx.strokeStyle = '#000';
+    ctx.beginPath(); ctx.arc(ex, ey, lr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // reflet
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.beginPath(); ctx.arc(ex, ey, lr * 0.6, Math.PI * 1.1, Math.PI * 1.5); ctx.stroke();
+  } else if (type === '3d') {
+    // verre cyan, monture rouge
+    ctx.fillStyle = 'rgba(0,200,220,0.45)';
+    ctx.strokeStyle = '#e23b3b';
+    ctx.beginPath(); ctx.arc(ex, ey, lr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  } else { // round (rondes, verres clairs)
+    ctx.fillStyle = 'rgba(200,225,255,0.35)';
+    ctx.strokeStyle = '#333';
+    ctx.beginPath(); ctx.arc(ex, ey, lr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  // pont vers le museau
+  ctx.strokeStyle = (type === '3d') ? '#e23b3b' : '#222';
+  ctx.beginPath();
+  ctx.moveTo(ex + lr * 0.85, ey + lr * 0.1);
+  ctx.lineTo(ex + lr * 1.5, ey + lr * 0.25);
+  ctx.stroke();
+}
+
+// Chapeau (coordonnées locales ; sommet du crâne ~ (1.35r, -1.0r))
+function drawHat(r, type) {
+  const hx = r * 1.35, hy = r * -0.95;
+  ctx.lineWidth = Math.max(1, r * 0.07);
+  if (type === 'bowler') {
+    // chapeau melon noir
+    ctx.fillStyle = '#23262b';
+    ctx.strokeStyle = '#000';
+    // bord
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, r * 0.95, r * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+    // dôme
+    ctx.beginPath();
+    ctx.ellipse(hx, hy - r * 0.12, r * 0.6, r * 0.55, 0, Math.PI, 0);
+    ctx.fill(); ctx.stroke();
+    // ruban
+    ctx.fillStyle = '#555';
+    ctx.fillRect(hx - r * 0.6, hy - r * 0.12, r * 1.2, r * 0.12);
+  } else if (type === 'party') {
+    // chapeau d'anniversaire (cône à rayures + pompon)
+    const baseY = hy - r * 0.05, apexY = hy - r * 1.5;
+    ctx.fillStyle = '#ff5fa2';
+    ctx.strokeStyle = '#c2185b';
+    ctx.beginPath();
+    ctx.moveTo(hx - r * 0.5, baseY);
+    ctx.lineTo(hx + r * 0.5, baseY);
+    ctx.lineTo(hx, apexY);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    // rayures
+    ctx.strokeStyle = '#ffe24a';
+    ctx.lineWidth = Math.max(1.5, r * 0.1);
+    for (let k = 1; k <= 3; k++) {
+      const t = k / 4;
+      ctx.beginPath();
+      ctx.moveTo(hx - r * 0.5 * (1 - t), baseY + (apexY - baseY) * t);
+      ctx.lineTo(hx + r * 0.5 * (1 - t), baseY + (apexY - baseY) * t);
+      ctx.stroke();
+    }
+    // pompon
+    ctx.fillStyle = '#ffe24a';
+    ctx.beginPath(); ctx.arc(hx, apexY, r * 0.16, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'cap') {
+    // casquette (calotte + visière vers l'avant/droite)
+    ctx.fillStyle = '#2980b9';
+    ctx.strokeStyle = '#1c5980';
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, r * 0.6, r * 0.5, 0, Math.PI, 0);
+    ctx.fill(); ctx.stroke();
+    // visière
+    ctx.beginPath();
+    ctx.ellipse(hx + r * 0.55, hy, r * 0.55, r * 0.16, 0, Math.PI * 1.1, Math.PI * 2.05);
+    ctx.fill(); ctx.stroke();
+    // bouton
+    ctx.fillStyle = '#1c5980';
+    ctx.beginPath(); ctx.arc(hx, hy - r * 0.48, r * 0.07, 0, Math.PI * 2); ctx.fill();
+  } else if (type === 'wig') {
+    // perruque bouclée colorée (amas de boucles)
+    const cols = ['#8e44ad', '#e67e22', '#27ae60', '#2980b9', '#e74c3c'];
+    const curls = [
+      [hx - r * 0.7, hy - r * 0.1], [hx - r * 0.35, hy - r * 0.45], [hx, hy - r * 0.6],
+      [hx + r * 0.4, hy - r * 0.45], [hx + r * 0.75, hy - r * 0.1],
+      [hx - r * 0.55, hy + r * 0.2], [hx + r * 0.6, hy + r * 0.2], [hx + r * 0.05, hy - r * 0.2]
+    ];
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.lineWidth = 1;
+    curls.forEach((c, i) => {
+      ctx.fillStyle = cols[i % cols.length];
+      ctx.beginPath(); ctx.arc(c[0], c[1], r * 0.32, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    });
+  }
 }
 
 function drawBird() {
@@ -851,7 +1040,7 @@ function drawBird() {
   ctx.rotate(bird.rot);
   // plus de vies perdues = plus gris (0 = couleur normale, 1 = tout gris)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
-  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor());
+  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType());
   ctx.restore();
 }
 
