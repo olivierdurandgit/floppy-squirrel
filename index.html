@@ -369,7 +369,7 @@ function reset() {
   invincibleUntil = 0;
   nextLifeAt = LIFE_EVERY;
   speed = BASE_SPEED;
-  scene = null;
+  scene = SCENES[Math.floor(Math.random() * SCENES.length)]; // décor de départ aléatoire
   nextSceneChange = SCENE_EVERY;
   paused = false;
   bgScroll = 0;
