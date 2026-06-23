@@ -505,7 +505,7 @@ function spawnPipe() {
     });
   }
   // champignon hallucinogène entre les colonnes (parfois, hors tuyaux à écureuil)
-  if (pipeCount % 10 !== 0 && Math.random() < 0.35) {
+  if (pipeCount % 10 !== 0 && Math.random() < 0.12) {
     mushrooms.push({
       x: W + PIPE_W / 2,
       baseY: top + PIPE_GAP * (0.3 + Math.random() * 0.4),
@@ -1656,7 +1656,7 @@ function drawTrip() {
     const bx = (i * 97 + frame * 2.5) % (W + 200) - 100;
     const by = (Math.sin(frame * 0.04 + i) * 0.5 + 0.5) * H;
     const rad = 90 + Math.sin(frame * 0.06 + i) * 40;
-    ctx.fillStyle = `hsla(${h}, 100%, 60%, 0.30)`;
+    ctx.fillStyle = `hsla(${h}, 100%, 60%, 0.65)`;
     ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
