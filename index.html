@@ -175,7 +175,7 @@
     cursor: pointer;
   }
   #closeCustomize:hover { background: #27ae60; }
-  #customizeBtn {
+  #customizeBtn, #deadHomeBtn {
     margin-top: 14px;
     border: none;
     border-radius: 22px;
@@ -186,7 +186,7 @@
     padding: 9px 20px;
     cursor: pointer;
   }
-  #customizeBtn:hover { background: #fff; }
+  #customizeBtn:hover, #deadHomeBtn:hover { background: #fff; }
 </style>
 </head>
 <body>
@@ -490,7 +490,12 @@ function showDead(cause) {
     <p>Score</p>
     <div class="big">${score}</div>
     <p>Meilleur : ${best}</p>
+    <button id="deadHomeBtn">🏠 Accueil</button>
     <div class="hint">Clique pour rejouer</div>`;
+  const hb = document.getElementById('deadHomeBtn');
+  const home = (e) => { e.preventDefault(); e.stopPropagation(); state = 'ready'; showReady(); };
+  hb.addEventListener('mousedown', home);
+  hb.addEventListener('touchstart', home, { passive: false });
 }
 
 // Gère le compte à rebours après le clic, puis lance la partie
