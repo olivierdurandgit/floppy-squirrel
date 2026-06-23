@@ -126,7 +126,7 @@ let nextLifeAt = 50;           // prochain palier de score qui donne une vie bon
 const LIFE_EVERY = 50;
 // --- Décors « catastrophe » : tirés au hasard tous les 4 écureuils sauvés ---
 const SCENE_EVERY = 4;                 // change de décor tous les 4 écureuils
-const SCENES = ['forest', 'lake'];     // forêt coupée / lac asséché
+const SCENES = ['forest', 'lake', 'factory']; // forêt coupée / désert (lac asséché) / usines
 let scene = null;                      // décor actif (null = usines au début)
 let nextSceneChange = SCENE_EVERY;
 
@@ -205,7 +205,7 @@ function showDead(cause) {
   const obstacleMsg = scene === 'forest'
     ? 'Floppy a fini en bûches'
     : scene === 'lake'
-      ? 'Floppy a fini à sec'
+      ? 'Floppy s’est ensablé'
       : 'Floppy a inhalé trop de fumée';
   const msg = cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg;
   overlay.classList.remove('hidden');
@@ -358,6 +358,42 @@ function drawSmokeRegion(cx, y0, y1, seed) {
   ctx.restore();
 }
 
+// Un pilier de sable entre y0 et y1 (extrémité arrondie côté passage)
+function drawSandColumn(cx, y0, y1, seed) {
+  const top = Math.min(y0, y1), bot = Math.max(y0, y1);
+  const w = PIPE_W;
+  ctx.save();
+  // dégradé de sable
+  const grad = ctx.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
+  grad.addColorStop(0, '#c79a52');
+  grad.addColorStop(0.5, '#e3c479');
+  grad.addColorStop(1, '#b98a45');
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = '#9a7335';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(cx - w / 2, top, w, bot - top, [10, 10, 10, 10]);
+  ctx.fill();
+  ctx.stroke();
+  // strates de sédiments
+  ctx.strokeStyle = 'rgba(150,110,50,0.35)';
+  ctx.lineWidth = 1.5;
+  for (let y = top + 12; y < bot - 6; y += 16) {
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 + 3, y + Math.sin(y * 0.2 + seed) * 2);
+    ctx.lineTo(cx + w / 2 - 3, y + Math.sin(y * 0.2 + seed + 1) * 2);
+    ctx.stroke();
+  }
+  // grains
+  ctx.fillStyle = 'rgba(255,240,200,0.5)';
+  for (let i = 0; i < 18; i++) {
+    const gx = cx - w / 2 + 4 + ((i * 53 + seed * 17) % (w - 8));
+    const gy = top + 6 + ((i * 97 + seed * 31) % Math.max(8, bot - top - 12));
+    ctx.fillRect(gx, gy, 1.5, 1.5);
+  }
+  ctx.restore();
+}
+
 // Une tronçonneuse : moteur ancré au mur (baseY), lame + chaîne tendue vers tipY (le passage).
 function drawChainsaw(cx, baseY, tipY) {
   const dir = tipY >= baseY ? 1 : -1;
@@ -424,8 +460,12 @@ function drawPipe(p) {
     // décor forêt : tronçonneuses (haut = moteur au plafond, bas = moteur au sol)
     drawChainsaw(cx, -8, p.top);
     drawChainsaw(cx, GROUND_Y, p.top + PIPE_GAP);
+  } else if (scene === 'lake') {
+    // désert : piliers de sable
+    drawSandColumn(cx, -10, p.top, p.seed);
+    drawSandColumn(cx, GROUND_Y, p.top + PIPE_GAP, p.seed + 5);
   } else {
-    // autres décors : volutes de fumée
+    // usines / début : volutes de fumée
     drawSmokeRegion(cx, -10, p.top, p.seed);
     drawSmokeRegion(cx, p.top + PIPE_GAP, GROUND_Y, p.seed + 5);
   }
@@ -830,7 +870,7 @@ let lakeItems = null;
 
 function ensureLake() {
   if (lakeItems) return;
-  lakeItems = { cracks: [], fish: [] };
+  lakeItems = { cracks: [], fish: [], cacti: [] };
   // fissures de la boue séchée (segments ramifiés)
   const bedTop = GROUND_Y - 4;
   for (let i = 0; i < 16; i++) {
@@ -851,6 +891,48 @@ function ensureLake() {
       rot: (Math.random() - 0.5) * 0.8,
       c: ['#9aa6ae', '#a7926b', '#b0b6ba'][Math.floor(Math.random() * 3)]
     });
+  }
+  // cactus (désert)
+  for (let i = 0; i < 3; i++) {
+    lakeItems.cacti.push({
+      x: 40 + Math.random() * (W - 80),
+      h: 46 + Math.random() * 44,
+      w: 12 + Math.random() * 6,
+      arms: Math.random() < 0.7 ? 2 : 1
+    });
+  }
+}
+
+// cactus type saguaro (tronc + bras)
+function drawCactus(x, baseY, h, w, arms) {
+  ctx.fillStyle = '#4f8b3f';
+  ctx.strokeStyle = '#356026';
+  ctx.lineWidth = 1.5;
+  const topY = baseY - h;
+  // tronc
+  ctx.beginPath();
+  ctx.roundRect(x - w / 2, topY, w, h, w / 2);
+  ctx.fill(); ctx.stroke();
+  // bras
+  const armW = w * 0.7;
+  const drawArm = (dir) => {
+    const ax = x + dir * (w / 2);
+    const ay = baseY - h * 0.5;
+    ctx.beginPath();
+    ctx.roundRect(ax - (dir < 0 ? armW : 0), ay, armW, armW * 0.8, armW / 2); // coude horizontal
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(ax + dir * (armW - armW * 0.9) - armW * 0.45, ay - h * 0.28, armW * 0.9, h * 0.32, armW / 2); // montée
+    ctx.fill(); ctx.stroke();
+  };
+  drawArm(1);
+  if (arms >= 2) drawArm(-1);
+  // épines (petits traits)
+  ctx.strokeStyle = 'rgba(40,70,30,0.6)';
+  ctx.lineWidth = 1;
+  for (let y = topY + 6; y < baseY - 4; y += 9) {
+    ctx.beginPath(); ctx.moveTo(x - w / 2, y); ctx.lineTo(x - w / 2 - 3, y - 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w / 2 + 3, y - 2); ctx.stroke();
   }
 }
 
@@ -907,6 +989,8 @@ function drawDriedLake() {
     ctx.lineTo(cr.x + Math.cos(cr.ang) * cr.len, cr.y + Math.sin(cr.ang) * cr.len);
     ctx.stroke();
   }
+  // cactus (derrière les poissons)
+  for (const c of lakeItems.cacti) drawCactus(c.x, GROUND_Y, c.h, c.w, c.arms);
   // poissons morts
   for (const f of lakeItems.fish) drawDeadFish(f.x, f.y, f.size, f.rot, f.c);
 }
@@ -923,7 +1007,7 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   drawBackground();
   // décor : usines au début, puis un décor catastrophe tiré au hasard tous les 4 écureuils
-  if (scene === null) drawFactories();
+  if (scene === null || scene === 'factory') drawFactories();
   drawGround();
   if (scene === 'forest') drawCutForest();
   else if (scene === 'lake') drawDriedLake();
