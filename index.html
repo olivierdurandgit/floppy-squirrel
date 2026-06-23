@@ -57,11 +57,31 @@
     animation: pulse 1.2s infinite;
   }
   @keyframes pulse { 0%,100% { transform: scale(1);} 50% { transform: scale(1.08);} }
+  #pauseBtn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0,0,0,.45);
+    color: #fff;
+    font-size: 18px;
+    line-height: 40px;
+    cursor: pointer;
+    display: none;
+    padding: 0;
+    transition: background .15s;
+  }
+  #pauseBtn:hover { background: rgba(0,0,0,.65); }
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="400" height="600"></canvas>
+  <button id="pauseBtn" aria-label="Pause">⏸</button>
   <div id="overlay">
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
@@ -74,7 +94,9 @@
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
+const pauseBtn = document.getElementById('pauseBtn');
 const W = canvas.width, H = canvas.height;
+let paused = false;
 
 // --- Paramètres du jeu ---
 const GRAVITY = 0.13;
@@ -146,6 +168,13 @@ function reset() {
   speed = BASE_SPEED;
   scene = null;
   nextSceneChange = SCENE_EVERY;
+  paused = false;
+}
+
+function togglePause() {
+  if (state !== 'play') return;       // pause seulement en cours de partie
+  paused = !paused;
+  pauseBtn.textContent = paused ? '▶' : '⏸';
 }
 
 function spawnPipe() {
@@ -169,6 +198,7 @@ function spawnPipe() {
 }
 
 function flap() {
+  if (paused) return;                  // pas de saut quand le jeu est en pause
   if (state === 'ready' || state === 'dead') {
     // le clic lance le compte à rebours ; la partie démarre après le délai
     startCountdown();
@@ -317,9 +347,10 @@ function update() {
     nextLifeAt += LIFE_EVERY;
   }
 
-  // Tous les 4 écureuils sauvés : on tire un nouveau décor catastrophe au hasard
+  // Tous les 4 écureuils sauvés : on tire un nouveau décor au hasard (jamais 2 fois le même d'affilée)
   while (followers.length >= nextSceneChange) {
-    scene = SCENES[Math.floor(Math.random() * SCENES.length)];
+    const choices = SCENES.filter(s => s !== scene);
+    scene = choices[Math.floor(Math.random() * choices.length)];
     nextSceneChange += SCENE_EVERY;
   }
 
@@ -1064,6 +1095,18 @@ function loop(now) {
   if (lastTime === null) lastTime = now;
   let elapsed = now - lastTime;
   lastTime = now;
+
+  // le bouton pause n'apparaît qu'en cours de partie
+  pauseBtn.style.display = (state === 'play') ? 'block' : 'none';
+
+  if (paused) {
+    // jeu figé : on dessine la scène + l'écran de pause, sans faire avancer la logique
+    draw();
+    drawPauseScreen();
+    requestAnimationFrame(loop);
+    return;
+  }
+
   // évite de « rattraper » trop d'un coup (onglet en arrière-plan, gros lag)
   if (elapsed > 250) elapsed = 250;
   acc += elapsed * SPEED_MULT;
@@ -1076,6 +1119,18 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 
+function drawPauseScreen() {
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 42px Segoe UI, Arial';
+  ctx.fillText('⏸ Pause', W / 2, H / 2 - 10);
+  ctx.font = '18px Segoe UI, Arial';
+  ctx.fillText('Appuie sur le bouton ▶ ou P pour reprendre', W / 2, H / 2 + 28);
+  ctx.textAlign = 'left';
+}
+
 // --- Contrôles ---
 canvas.addEventListener('mousedown', e => { e.preventDefault(); flap(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
@@ -1083,7 +1138,13 @@ overlay.addEventListener('mousedown', e => { e.preventDefault(); flap(); });
 overlay.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
+  else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
 });
+
+// bouton pause (stopPropagation pour ne pas déclencher un saut)
+function pauseHandler(e) { e.preventDefault(); e.stopPropagation(); togglePause(); }
+pauseBtn.addEventListener('mousedown', pauseHandler);
+pauseBtn.addEventListener('touchstart', pauseHandler, { passive: false });
 
 requestAnimationFrame(loop);
 </script>
