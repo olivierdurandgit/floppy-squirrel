@@ -578,10 +578,12 @@ function showDead(cause) {
     : scene === 'lake'
       ? 'Floppy s’est noyé dans le sable'
       : 'Floppy a inhalé trop de fumée';
-  // si on meurt sous l'effet d'un champignon, message dédié
+  // messages dédiés si on meurt sous l'effet d'un item
   const msg = (Date.now() < tripUntil)
     ? 'Il vaut mieux éviter de manger certaines choses…'
-    : (cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg);
+    : (Date.now() < slowUntil)
+      ? 'Le burger a un peu trop alourdi Floppy'
+      : (cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg);
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
     <h1>💥 Perdu !</h1>
@@ -1441,33 +1443,62 @@ function drawMushroom(x, y) {
   ctx.beginPath(); ctx.arc(x + r * 0.05, y - r * 0.05, r * 0.12, 0, 6.28); ctx.fill();
 }
 
-// boulet (sphère noire métallique + petite chaîne)
-function drawBoulet(x, y) {
+// burger (malus : ralentit + alourdit)
+function drawBurger(x, y) {
   const r = BOULET_R;
-  // chaîne
-  ctx.strokeStyle = '#777';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 3; i++) {
-    ctx.beginPath();
-    ctx.arc(x - r * 0.6 - i * 5, y - r * 0.8 - i * 5, 2.5, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  // boule
-  const grad = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.2, x, y, r);
-  grad.addColorStop(0, '#6b6f76');
-  grad.addColorStop(0.6, '#2c2f34');
-  grad.addColorStop(1, '#15171a');
-  ctx.fillStyle = grad;
-  ctx.strokeStyle = '#0c0d0f';
-  ctx.lineWidth = 1.5;
+  const w = r * 2.3;
+  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = '#8a5a26';
+  // pain du bas
+  ctx.fillStyle = '#e0a35b';
   ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.roundRect(x - w / 2, y + r * 0.45, w, r * 0.55, [4, 4, 7, 7]);
   ctx.fill(); ctx.stroke();
-  // reflet
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  // steak
+  ctx.fillStyle = '#6b3f25';
   ctx.beginPath();
-  ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.roundRect(x - w / 2 - 1, y + r * 0.12, w + 2, r * 0.42, 5);
+  ctx.fill(); ctx.stroke();
+  // fromage (carré fondant avec coins pendants)
+  ctx.fillStyle = '#f3c44b';
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, y + r * 0.02);
+  ctx.lineTo(x + w / 2, y + r * 0.02);
+  ctx.lineTo(x + w / 2 - 3, y + r * 0.42);
+  ctx.lineTo(x + w / 4, y + r * 0.18);
+  ctx.lineTo(x, y + r * 0.42);
+  ctx.lineTo(x - w / 4, y + r * 0.18);
+  ctx.lineTo(x - w / 2 + 3, y + r * 0.42);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // salade (bande verte ondulée)
+  ctx.fillStyle = '#79c34b';
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2 - 2, y - r * 0.02);
+  for (let i = 0; i <= 6; i++) {
+    const px = x - w / 2 + w * (i / 6);
+    ctx.lineTo(px, y - r * 0.02 + (i % 2 ? -3 : 3));
+  }
+  ctx.lineTo(x + w / 2 + 2, y + r * 0.12);
+  ctx.lineTo(x - w / 2 - 2, y + r * 0.12);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // pain du haut (dôme)
+  ctx.fillStyle = '#e8a55c';
+  ctx.beginPath();
+  ctx.ellipse(x, y - r * 0.08, w / 2, r * 0.78, 0, Math.PI, 2 * Math.PI);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // graines de sésame
+  ctx.fillStyle = '#fff4d8';
+  const seeds = [[-0.4, -0.45], [0, -0.62], [0.4, -0.45], [-0.18, -0.28], [0.2, -0.28]];
+  for (const s of seeds) {
+    ctx.save();
+    ctx.translate(x + s[0] * w * 0.5, y - r * 0.08 + s[1] * r);
+    ctx.rotate(0.5);
+    ctx.beginPath(); ctx.ellipse(0, 0, 1.9, 1, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
 }
 
 function drawCutForest() {
@@ -1676,8 +1707,8 @@ function draw() {
   for (const b of freeBirds) drawSmallBird(b.x, b.y, b.body, b.stroke, 0);
   // champignons hallucinogènes
   for (const m of mushrooms) drawMushroom(m.x, m.y);
-  // boulets (ralentissement)
-  for (const wgt of weights) drawBoulet(wgt.x, wgt.y);
+  // burgers (ralentissement + lourdeur)
+  for (const wgt of weights) drawBurger(wgt.x, wgt.y);
 
   // le gros oiseau clignote pendant l'invincibilité
   const invincible = Date.now() < invincibleUntil;
