@@ -76,12 +76,31 @@
     transition: background .15s;
   }
   #pauseBtn:hover { background: rgba(0,0,0,.65); }
+  #homeBtn {
+    position: absolute;
+    left: 50%;
+    top: 60%;
+    transform: translateX(-50%);
+    z-index: 6;
+    border: none;
+    border-radius: 22px;
+    background: rgba(255,255,255,.92);
+    color: #333;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 10px 22px;
+    cursor: pointer;
+    display: none;
+    transition: background .15s;
+  }
+  #homeBtn:hover { background: #fff; }
 </style>
 </head>
 <body>
 <div id="wrap">
   <canvas id="game" width="400" height="600"></canvas>
   <button id="pauseBtn" aria-label="Pause">⏸</button>
+  <button id="homeBtn">🏠 Accueil</button>
   <div id="overlay">
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
@@ -95,6 +114,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const overlay = document.getElementById('overlay');
 const pauseBtn = document.getElementById('pauseBtn');
+const homeBtn = document.getElementById('homeBtn');
 const W = canvas.width, H = canvas.height;
 let paused = false;
 
@@ -178,6 +198,14 @@ function togglePause() {
   if (state !== 'play') return;       // pause seulement en cours de partie
   paused = !paused;
   pauseBtn.textContent = paused ? '▶' : '⏸';
+}
+
+// retour à l'écran d'accueil depuis la pause
+function goHome() {
+  paused = false;
+  pauseBtn.textContent = '⏸';
+  state = 'ready';
+  showReady();
 }
 
 function spawnPipe() {
@@ -1122,8 +1150,9 @@ function loop(now) {
   let elapsed = now - lastTime;
   lastTime = now;
 
-  // le bouton pause n'apparaît qu'en cours de partie
+  // le bouton pause n'apparaît qu'en cours de partie ; le bouton accueil seulement en pause
   pauseBtn.style.display = (state === 'play') ? 'block' : 'none';
+  homeBtn.style.display = paused ? 'block' : 'none';
 
   if (paused) {
     // jeu figé : on dessine la scène + l'écran de pause, sans faire avancer la logique
@@ -1171,6 +1200,10 @@ window.addEventListener('keydown', e => {
 function pauseHandler(e) { e.preventDefault(); e.stopPropagation(); togglePause(); }
 pauseBtn.addEventListener('mousedown', pauseHandler);
 pauseBtn.addEventListener('touchstart', pauseHandler, { passive: false });
+
+function homeHandler(e) { e.preventDefault(); e.stopPropagation(); goHome(); }
+homeBtn.addEventListener('mousedown', homeHandler);
+homeBtn.addEventListener('touchstart', homeHandler, { passive: false });
 
 requestAnimationFrame(loop);
 </script>
