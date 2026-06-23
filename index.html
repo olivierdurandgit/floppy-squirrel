@@ -205,7 +205,7 @@ function showDead(cause) {
   const obstacleMsg = scene === 'forest'
     ? 'Floppy a fini en bûches'
     : scene === 'lake'
-      ? 'Floppy c’est noyé dans le sable'
+      ? 'Floppy s’est noyé dans le sable'
       : 'Floppy a inhalé trop de fumée';
   const msg = cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg;
   overlay.classList.remove('hidden');
