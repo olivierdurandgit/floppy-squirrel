@@ -358,37 +358,34 @@ function drawSmokeRegion(cx, y0, y1, seed) {
   ctx.restore();
 }
 
-// Un pilier de sable entre y0 et y1 (extrémité arrondie côté passage)
+// Un pilier de sable à la forme irrégulière (bouffées de sable empilées, comme la fumée mais opaque)
 function drawSandColumn(cx, y0, y1, seed) {
   const top = Math.min(y0, y1), bot = Math.max(y0, y1);
-  const w = PIPE_W;
+  const step = 15;
   ctx.save();
-  // dégradé de sable
-  const grad = ctx.createLinearGradient(cx - w / 2, 0, cx + w / 2, 0);
-  grad.addColorStop(0, '#c79a52');
-  grad.addColorStop(0.5, '#e3c479');
-  grad.addColorStop(1, '#b98a45');
-  ctx.fillStyle = grad;
-  ctx.strokeStyle = '#9a7335';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(cx - w / 2, top, w, bot - top, [10, 10, 10, 10]);
-  ctx.fill();
-  ctx.stroke();
-  // strates de sédiments
-  ctx.strokeStyle = 'rgba(150,110,50,0.35)';
-  ctx.lineWidth = 1.5;
-  for (let y = top + 12; y < bot - 6; y += 16) {
-    ctx.beginPath();
-    ctx.moveTo(cx - w / 2 + 3, y + Math.sin(y * 0.2 + seed) * 2);
-    ctx.lineTo(cx + w / 2 - 3, y + Math.sin(y * 0.2 + seed + 1) * 2);
-    ctx.stroke();
+  for (let y = top; y <= bot; y += step) {
+    const k = (y - top) / step;
+    // bord irrégulier : décalage horizontal déterministe par seed
+    const bump = Math.sin(k * 1.1 + seed) * 11 + Math.sin(k * 0.5 + seed * 1.7) * 6;
+    const cxk = cx + bump;
+    const lobes = [
+      { dx: 0,   r: 24, c: '#d8b568' },
+      { dx: -14, r: 16, c: '#c79a52' },
+      { dx: 14,  r: 17, c: '#e3c479' },
+      { dx: 3,   r: 13, c: '#b98a45' }
+    ];
+    for (const l of lobes) {
+      ctx.fillStyle = l.c;
+      ctx.beginPath();
+      ctx.arc(cxk + l.dx, y, l.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
-  // grains
-  ctx.fillStyle = 'rgba(255,240,200,0.5)';
-  for (let i = 0; i < 18; i++) {
-    const gx = cx - w / 2 + 4 + ((i * 53 + seed * 17) % (w - 8));
-    const gy = top + 6 + ((i * 97 + seed * 31) % Math.max(8, bot - top - 12));
+  // grains clairs épars
+  ctx.fillStyle = 'rgba(255,240,200,0.55)';
+  for (let i = 0; i < 22; i++) {
+    const gx = cx - 22 + ((i * 53 + seed * 17) % 44);
+    const gy = top + 6 + ((i * 97 + seed * 31) % Math.max(8, bot - top - 10));
     ctx.fillRect(gx, gy, 1.5, 1.5);
   }
   ctx.restore();
