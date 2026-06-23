@@ -301,6 +301,11 @@ let mushrooms = [];        // champignons hallucinogènes
 let tripUntil = 0;         // timestamp ms : fin de l'effet psychédélique
 const MUSH_R = 11;
 const TRIP_MS = 6000;      // durée de l'effet « couleurs partout »
+let weights = [];          // boulets (ralentissent le jeu)
+let slowUntil = 0;         // timestamp ms : fin du ralentissement
+const BOULET_R = 12;
+const SLOW_MS = 6000;      // durée du ralentissement
+const SLOW_FACTOR = 0.45;  // facteur de vitesse pendant le ralentissement
 let freeBirds = [];        // petits oiseaux à attraper (flottent entre les tuyaux)
 let followers = [];        // petits oiseaux attrapés qui suivent le gros oiseau
 let trail = [];            // historique des positions du gros oiseau (pour le suivi)
@@ -345,6 +350,8 @@ function reset() {
   pipes = [];
   mushrooms = [];
   tripUntil = 0;
+  weights = [];
+  slowUntil = 0;
   freeBirds = [];
   followers = [];
   trail = [];
@@ -512,6 +519,14 @@ function spawnPipe() {
       phase: Math.random() * Math.PI * 2
     });
   }
+  // boulet entre les colonnes (même chance que le champignon) : ralentit le jeu
+  if (pipeCount % 10 !== 0 && Math.random() < 0.06) {
+    weights.push({
+      x: W + PIPE_W / 2,
+      baseY: top + PIPE_GAP * (0.3 + Math.random() * 0.4),
+      phase: Math.random() * Math.PI * 2
+    });
+  }
 }
 
 function flap() {
@@ -621,7 +636,11 @@ function update() {
   // Au-delà de 15 points : la vitesse augmente progressivement avec le score
   if (score >= SPEED_FROM) {
     speed = Math.min(MAX_SPEED, BASE_SPEED + (score - SPEED_FROM) * ACCEL);
+  } else {
+    speed = BASE_SPEED;
   }
+  // boulet ramassé : ralentissement temporaire du jeu
+  if (Date.now() < slowUntil) speed *= SLOW_FACTOR;
   // défilement du décor d'arrière-plan (parallaxe, plus lent que les obstacles)
   bgScroll += speed * BG_PARALLAX;
   // Au-delà de 100 points : chaque obstacle franchi rapporte 2 points au lieu de 1
@@ -687,6 +706,17 @@ function update() {
     }
   }
   mushrooms = mushrooms.filter(m => !m.eaten && m.x + MUSH_R > -10);
+
+  // Boulets : déplacement, ondulation, et déclenchement du ralentissement
+  for (const wgt of weights) {
+    wgt.x -= speed;
+    wgt.y = wgt.baseY + Math.sin((frame + wgt.phase * 10) * 0.06) * 5;
+    if (Math.hypot(wgt.x - bird.x, wgt.y - bird.y) < bird.r + BOULET_R + 8) {
+      wgt.taken = true;
+      slowUntil = Date.now() + SLOW_MS;   // ralentit le jeu pendant SLOW_MS
+    }
+  }
+  weights = weights.filter(wgt => !wgt.taken && wgt.x + BOULET_R > -10);
 
   // Vie bonus tous les 50 points
   while (score >= nextLifeAt) {
@@ -1408,6 +1438,35 @@ function drawMushroom(x, y) {
   ctx.beginPath(); ctx.arc(x + r * 0.05, y - r * 0.05, r * 0.12, 0, 6.28); ctx.fill();
 }
 
+// boulet (sphère noire métallique + petite chaîne)
+function drawBoulet(x, y) {
+  const r = BOULET_R;
+  // chaîne
+  ctx.strokeStyle = '#777';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(x - r * 0.6 - i * 5, y - r * 0.8 - i * 5, 2.5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // boule
+  const grad = ctx.createRadialGradient(x - r * 0.35, y - r * 0.35, r * 0.2, x, y, r);
+  grad.addColorStop(0, '#6b6f76');
+  grad.addColorStop(0.6, '#2c2f34');
+  grad.addColorStop(1, '#15171a');
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = '#0c0d0f';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // reflet
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.22, r * 0.13, -0.6, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 function drawCutForest() {
   ensureForest();
   const g = GROUND_Y;
@@ -1614,6 +1673,8 @@ function draw() {
   for (const b of freeBirds) drawSmallBird(b.x, b.y, b.body, b.stroke, 0);
   // champignons hallucinogènes
   for (const m of mushrooms) drawMushroom(m.x, m.y);
+  // boulets (ralentissement)
+  for (const wgt of weights) drawBoulet(wgt.x, wgt.y);
 
   // le gros oiseau clignote pendant l'invincibilité
   const invincible = Date.now() < invincibleUntil;
