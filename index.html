@@ -297,6 +297,10 @@ const GROUND_Y = H * 0.85;
 
 const bird = { x: 90, y: H/2, r: 14, vy: 0, rot: 0 };
 let pipes = [];
+let mushrooms = [];        // champignons hallucinogènes
+let tripUntil = 0;         // timestamp ms : fin de l'effet psychédélique
+const MUSH_R = 11;
+const TRIP_MS = 6000;      // durée de l'effet « couleurs partout »
 let freeBirds = [];        // petits oiseaux à attraper (flottent entre les tuyaux)
 let followers = [];        // petits oiseaux attrapés qui suivent le gros oiseau
 let trail = [];            // historique des positions du gros oiseau (pour le suivi)
@@ -339,6 +343,8 @@ let nextSceneChange = SCENE_EVERY;
 function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
   pipes = [];
+  mushrooms = [];
+  tripUntil = 0;
   freeBirds = [];
   followers = [];
   trail = [];
@@ -496,6 +502,14 @@ function spawnPipe() {
       phase: Math.random() * Math.PI * 2,
       body: col.body,
       stroke: col.stroke
+    });
+  }
+  // champignon hallucinogène entre les colonnes (parfois, hors tuyaux à écureuil)
+  if (pipeCount % 10 !== 0 && Math.random() < 0.35) {
+    mushrooms.push({
+      x: W + PIPE_W / 2,
+      baseY: top + PIPE_GAP * (0.3 + Math.random() * 0.4),
+      phase: Math.random() * Math.PI * 2
     });
   }
 }
@@ -659,6 +673,17 @@ function update() {
     }
   }
   freeBirds = freeBirds.filter(b => !b.captured && b.x + SMALL_R > -10);
+
+  // Champignons hallucinogènes : déplacement, ondulation, et déclenchement du « trip »
+  for (const m of mushrooms) {
+    m.x -= speed;
+    m.y = m.baseY + Math.sin((frame + m.phase * 10) * 0.07) * 7;
+    if (Math.hypot(m.x - bird.x, m.y - bird.y) < bird.r + MUSH_R + 8) {
+      m.eaten = true;
+      tripUntil = Date.now() + TRIP_MS;   // couleurs partout pendant TRIP_MS
+    }
+  }
+  mushrooms = mushrooms.filter(m => !m.eaten && m.x + MUSH_R > -10);
 
   // Vie bonus tous les 50 points
   while (score >= nextLifeAt) {
@@ -1356,6 +1381,30 @@ function drawDeadAnimal(x, baseY, size, color) {
   ctx.stroke();
 }
 
+// champignon hallucinogène (chapeau rouge à pois, pied clair)
+function drawMushroom(x, y) {
+  const r = MUSH_R;
+  // pied
+  ctx.fillStyle = '#f3ead2';
+  ctx.strokeStyle = '#c9b98f';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.roundRect(x - r * 0.32, y - r * 0.1, r * 0.64, r * 0.95, r * 0.2);
+  ctx.fill(); ctx.stroke();
+  // chapeau rouge (dôme)
+  ctx.fillStyle = '#e0322b';
+  ctx.strokeStyle = '#a11f1a';
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.78, 0, Math.PI, 2 * Math.PI);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // pois blancs
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x - r * 0.42, y - r * 0.18, r * 0.16, 0, 6.28); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.32, y - r * 0.28, r * 0.13, 0, 6.28); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.05, y - r * 0.05, r * 0.12, 0, 6.28); ctx.fill();
+}
+
 function drawCutForest() {
   ensureForest();
   const g = GROUND_Y;
@@ -1551,6 +1600,8 @@ function draw() {
   }
   // petits oiseaux à attraper : gardent leur couleur vive pour bien les repérer
   for (const b of freeBirds) drawSmallBird(b.x, b.y, b.body, b.stroke, 0);
+  // champignons hallucinogènes
+  for (const m of mushrooms) drawMushroom(m.x, m.y);
 
   // le gros oiseau clignote pendant l'invincibilité
   const invincible = Date.now() < invincibleUntil;
@@ -1583,6 +1634,32 @@ function draw() {
     for (let i = 0; i < total; i++) hearts += i < lives ? '❤️' : '🤍';
     ctx.fillText(hearts, 12, 34);
   }
+
+  // ---- EFFET HALLUCINOGÈNE : couleurs partout ----
+  if (Date.now() < tripUntil) drawTrip();
+}
+
+// superpose un effet psychédélique de couleurs sur toute la scène
+function drawTrip() {
+  const hue = (frame * 7) % 360;
+  // recolore toute l'image avec une teinte qui défile
+  ctx.save();
+  ctx.globalCompositeOperation = 'hue';
+  ctx.fillStyle = `hsl(${hue}, 100%, 50%)`;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+  // bulles de couleur flottantes par-dessus
+  ctx.save();
+  ctx.globalCompositeOperation = 'overlay';
+  for (let i = 0; i < 5; i++) {
+    const h = (hue + i * 72) % 360;
+    const bx = (i * 97 + frame * 2.5) % (W + 200) - 100;
+    const by = (Math.sin(frame * 0.04 + i) * 0.5 + 0.5) * H;
+    const rad = 90 + Math.sin(frame * 0.06 + i) * 40;
+    ctx.fillStyle = `hsla(${h}, 100%, 60%, 0.30)`;
+    ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
 }
 
 // Boucle à pas de temps fixe : la logique tourne toujours à 60 Hz en temps réel,
