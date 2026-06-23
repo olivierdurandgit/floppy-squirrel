@@ -1583,6 +1583,15 @@ function drawGround() {
 
 function draw() {
   ctx.clearRect(0, 0, W, H);
+  // pendant l'effet hallucinogène : zoom pulsé centré sur l'écureuil
+  const tripping = Date.now() < tripUntil;
+  ctx.save();
+  if (tripping) {
+    const z = 1.2 + Math.sin(frame * 0.12) * 0.2;   // pulse entre 1.0 et ~1.4
+    ctx.translate(bird.x, bird.y);
+    ctx.scale(z, z);
+    ctx.translate(-bird.x, -bird.y);
+  }
   drawBackground();
   // décor : usines au début, puis un décor catastrophe tiré au hasard tous les 4 écureuils
   if (scene === null || scene === 'factory') drawFactories();
@@ -1635,8 +1644,10 @@ function draw() {
     ctx.fillText(hearts, 12, 34);
   }
 
-  // ---- EFFET HALLUCINOGÈNE : couleurs partout ----
-  if (Date.now() < tripUntil) drawTrip();
+  ctx.restore();   // fin du zoom
+
+  // ---- EFFET HALLUCINOGÈNE : couleurs partout (par-dessus, sans zoom) ----
+  if (tripping) drawTrip();
 }
 
 // superpose un effet psychédélique de couleurs sur toute la scène
