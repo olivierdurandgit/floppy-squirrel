@@ -65,7 +65,7 @@
   <div id="overlay">
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
-    <p>Évite les obstacles 💨🪚 — chaque contact coûte une vie ❤️ (3 max)</p>
+    <p>Évite les obstacles  — chaque contact coûte une vie ❤️ (3 max)</p>
     <div class="hint">Clique pour commencer</div>
   </div>
 </div>
@@ -667,12 +667,32 @@ let forestItems = null;
 function ensureForest() {
   if (forestItems) return;
   forestItems = [];
-  for (let i = 0; i < 8; i++) {
+  // souches et troncs abattus
+  for (let i = 0; i < 7; i++) {
     forestItems.push({
       x: 24 + Math.random() * (W - 48),
       h: 16 + Math.random() * 28,          // hauteur de souche
       w: 16 + Math.random() * 16,          // largeur du tronc
       type: Math.random() < 0.4 ? 'log' : 'stump'
+    });
+  }
+  // quelques arbres morts debout (sans feuilles)
+  for (let i = 0; i < 3; i++) {
+    forestItems.push({
+      x: 40 + Math.random() * (W - 80),
+      h: 110 + Math.random() * 70,         // hauteur de l'arbre
+      w: 9 + Math.random() * 5,            // largeur du tronc
+      seed: Math.random() * 100,
+      type: 'tree'
+    });
+  }
+  // animaux morts au sol
+  for (let i = 0; i < 2; i++) {
+    forestItems.push({
+      x: 40 + Math.random() * (W - 80),
+      w: 16 + Math.random() * 8,           // taille de l'animal
+      c: Math.random() < 0.5 ? '#7a5a3a' : '#8a8076',
+      type: 'animal'
     });
   }
   forestItems.sort((a, b) => a.x - b.x);
@@ -691,21 +711,91 @@ function drawRings(cx, cy, rx, ry) {
   }
 }
 
+// arbre mort debout, sans feuilles (tronc tapéré + branches nues)
+function drawDeadTree(x, baseY, h, w, seed) {
+  const topY = baseY - h;
+  ctx.fillStyle = '#5b4a3a';
+  ctx.strokeStyle = '#3a2e22';
+  ctx.lineWidth = 1.5;
+  // tronc qui s'affine vers le haut
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, baseY);
+  ctx.lineTo(x - w * 0.18, topY);
+  ctx.lineTo(x + w * 0.18, topY);
+  ctx.lineTo(x + w / 2, baseY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // branches nues
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#4a3b2c';
+  const branch = (bx, by, ang, len, width) => {
+    if (len < 6) return;
+    const ex = bx + Math.cos(ang) * len;
+    const ey = by + Math.sin(ang) * len;
+    ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(ex, ey); ctx.stroke();
+    branch(ex, ey, ang - 0.5, len * 0.6, width * 0.6);
+    branch(ex, ey, ang + 0.45, len * 0.6, width * 0.6);
+  };
+  for (let i = 0; i < 4; i++) {
+    const by = topY + (h * 0.08) + i * (h * 0.18);
+    const side = (i % 2 === 0) ? 1 : -1;
+    const ang = (-Math.PI / 2) + side * (0.6 + ((seed + i) % 3) * 0.12);
+    branch(x, by, ang, h * 0.18, Math.max(1.5, w * 0.35));
+  }
+  ctx.lineWidth = 1.5;
+}
+
+// animal mort au sol (couché, pattes raides en l'air, œil en croix)
+function drawDeadAnimal(x, baseY, size, color) {
+  const cy = baseY - size * 0.28;
+  ctx.strokeStyle = '#2e241b';
+  ctx.fillStyle = color;
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  // pattes raides vers le haut
+  for (let i = 0; i < 4; i++) {
+    const lx = x - size * 0.5 + i * (size * 0.33);
+    ctx.beginPath();
+    ctx.moveTo(lx, cy);
+    ctx.lineTo(lx + (i % 2 ? 3 : -3), cy - size * 0.5);
+    ctx.stroke();
+  }
+  // corps
+  ctx.beginPath();
+  ctx.ellipse(x, cy, size * 0.7, size * 0.4, 0, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // tête
+  ctx.beginPath();
+  ctx.arc(x - size * 0.85, cy - size * 0.05, size * 0.3, 0, Math.PI * 2);
+  ctx.fill(); ctx.stroke();
+  // œil en croix (X)
+  ctx.lineWidth = 1.4;
+  const ex = x - size * 0.9, ey = cy - size * 0.1, e = size * 0.12;
+  ctx.beginPath();
+  ctx.moveTo(ex - e, ey - e); ctx.lineTo(ex + e, ey + e);
+  ctx.moveTo(ex + e, ey - e); ctx.lineTo(ex - e, ey + e);
+  ctx.stroke();
+}
+
 function drawCutForest() {
   ensureForest();
   const g = GROUND_Y;
+  // 1) arbres morts au fond
+  for (const it of forestItems) {
+    if (it.type === 'tree') drawDeadTree(it.x, g, it.h, it.w, it.seed);
+  }
+  // 2) souches, troncs abattus et animaux morts au premier plan
   for (const it of forestItems) {
     if (it.type === 'stump') {
-      // tronc coupé droit
       ctx.fillStyle = '#6b4a2b';
       ctx.strokeStyle = '#3f2a16';
       ctx.lineWidth = 1.5;
       ctx.fillRect(it.x - it.w / 2, g - it.h, it.w, it.h);
       ctx.strokeRect(it.x - it.w / 2, g - it.h, it.w, it.h);
-      // surface de coupe + anneaux
       drawRings(it.x, g - it.h, it.w / 2, it.w / 5);
-    } else {
-      // tronc abattu, couché au sol
+    } else if (it.type === 'log') {
       const len = it.w * 3.2, r = it.w * 0.45;
       const y = g - r - 1;
       ctx.fillStyle = '#6b4a2b';
@@ -714,8 +804,9 @@ function drawCutForest() {
       ctx.beginPath();
       ctx.roundRect(it.x - len / 2, y - r, len, r * 2, r);
       ctx.fill(); ctx.stroke();
-      // bout coupé (anneaux) à droite
       drawRings(it.x + len / 2, y, r * 0.55, r);
+    } else if (it.type === 'animal') {
+      drawDeadAnimal(it.x, g, it.w, it.c);
     }
   }
 }
