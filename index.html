@@ -136,16 +136,22 @@
     max-width: 320px;
     min-height: 44px;
   }
-  .optBtn {
+  .optIcon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     border: 3px solid transparent;
-    border-radius: 16px;
+    border-radius: 12px;
     background: rgba(255,255,255,.2);
     color: #fff;
-    font-size: 13px;
-    padding: 8px 14px;
+    font-size: 11px;
+    padding: 6px 8px;
     cursor: pointer;
   }
-  .optBtn.selected { border-color: #fff; background: rgba(255,255,255,.35); font-weight: bold; }
+  .optIcon canvas { background: rgba(255,255,255,.12); border-radius: 6px; }
+  .optIcon.selected { border-color: #fff; background: rgba(255,255,255,.35); font-weight: bold; }
+  .optLbl { white-space: nowrap; }
   .swatch {
     width: 38px;
     height: 38px;
@@ -232,7 +238,8 @@ const SHIRTS = [
   { name: 'Jaune',  color: [241, 196, 15] },
   { name: 'Violet', color: [155, 89, 182] },
   { name: 'Rose',   color: [255, 111, 174] },
-  { name: 'Noir',   color: [52, 52, 60] }
+  { name: 'Noir',   color: [52, 52, 60] },
+  { name: 'Blanc',  color: [245, 245, 245] }
 ];
 const HATS = [
   { name: 'Aucun', type: null },
@@ -255,7 +262,8 @@ const SOCKS = [
   { name: 'Jaune',  color: [241, 196, 15] },
   { name: 'Violet', color: [155, 89, 182] },
   { name: 'Rose',   color: [255, 111, 174] },
-  { name: 'Blanc',  color: [245, 245, 245] }
+  { name: 'Blanc',  color: [245, 245, 245] },
+  { name: 'Noir',   color: [40, 40, 46] }
 ];
 let shirtIndex = Number(localStorage.getItem('floppyShirt') || 0);
 let hatIndex = Number(localStorage.getItem('floppyHat') || 0);
@@ -408,8 +416,15 @@ function buildOptions() {
     const sel = currentTab === 'hat' ? hatIndex : glassesIndex;
     list.forEach((o, i) => {
       const el = document.createElement('button');
-      el.className = 'optBtn' + (i === sel ? ' selected' : '');
-      el.textContent = o.name;
+      el.className = 'optIcon' + (i === sel ? ' selected' : '');
+      const cv = document.createElement('canvas');
+      cv.width = 48; cv.height = 40;
+      renderAccessoryIcon(cv, currentTab, o.type);
+      el.appendChild(cv);
+      const lbl = document.createElement('span');
+      lbl.className = 'optLbl';
+      lbl.textContent = o.name;
+      el.appendChild(lbl);
       el.addEventListener('click', () => {
         if (currentTab === 'hat') { hatIndex = i; localStorage.setItem('floppyHat', i); }
         else { glassesIndex = i; localStorage.setItem('floppyGlasses', i); }
@@ -418,6 +433,33 @@ function buildOptions() {
       shirtOptionsEl.appendChild(el);
     });
   }
+}
+
+// Dessine un aperçu de l'accessoire (chapeau ou lunettes) dans un petit canvas
+function renderAccessoryIcon(cv, kind, type) {
+  const c = cv.getContext('2d');
+  c.clearRect(0, 0, cv.width, cv.height);
+  if (!type) {
+    c.fillStyle = '#ccc';
+    c.font = '20px Segoe UI, Arial';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('∅', cv.width / 2, cv.height / 2);
+    return;
+  }
+  const saved = ctx;
+  ctx = c;
+  ctx.save();
+  const r = 13;
+  if (kind === 'hat') {
+    ctx.translate(cv.width / 2 - 1.35 * r, cv.height * 0.92 + 0.95 * r);
+    drawHat(r, type);
+  } else {
+    ctx.translate(cv.width / 2 - 1.65 * r, cv.height / 2 + 0.42 * r);
+    drawGlasses(r, type);
+  }
+  ctx.restore();
+  ctx = saved;
 }
 
 function openCustomize() {
