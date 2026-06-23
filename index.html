@@ -306,6 +306,7 @@ let slowUntil = 0;         // timestamp ms : fin du ralentissement
 const BOULET_R = 12;
 const SLOW_MS = 6000;      // durée du ralentissement
 const SLOW_FACTOR = 0.45;  // facteur de vitesse pendant le ralentissement
+const HEAVY_GRAVITY = 2.2; // multiplicateur de gravité quand le boulet est actif (saut inchangé)
 let freeBirds = [];        // petits oiseaux à attraper (flottent entre les tuyaux)
 let followers = [];        // petits oiseaux attrapés qui suivent le gros oiseau
 let trail = [];            // historique des positions du gros oiseau (pour le suivi)
@@ -629,7 +630,9 @@ function update() {
   if (state !== 'play') return;
   frame++;
 
-  bird.vy += GRAVITY;
+  // boulet actif : gravité renforcée (l'écureuil est plus lourd), force de saut inchangée
+  const grav = (Date.now() < slowUntil) ? GRAVITY * HEAVY_GRAVITY : GRAVITY;
+  bird.vy += grav;
   bird.y += bird.vy;
   bird.rot = Math.max(-0.5, Math.min(1.2, bird.vy / 12));
 
