@@ -296,6 +296,10 @@ const BG_PARALLAX = 0.4;      // le décor défile plus lentement que les obstac
 const GROUND_Y = H * 0.85;
 
 const bird = { x: 90, y: H/2, r: 14, vy: 0, rot: 0 };
+let birdScale = 1;             // taille de l'écureuil (grossit avec le burger, rétrécit aux sauts)
+const BURGER_GROW = 0.8;       // grossissement par burger mangé
+const MAX_SCALE = 2.4;         // taille max
+const SHRINK_PER_FLAP = 0.12;  // rétrécissement à chaque saut
 let pipes = [];
 let mushrooms = [];        // champignons hallucinogènes
 let tripUntil = 0;         // timestamp ms : fin de l'effet psychédélique
@@ -348,6 +352,7 @@ let nextSceneChange = SCENE_EVERY;
 
 function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
+  birdScale = 1;
   pipes = [];
   mushrooms = [];
   tripUntil = 0;
@@ -539,6 +544,8 @@ function flap() {
     return;
   } else if (state === 'play') {
     bird.vy = FLAP;
+    // chaque saut fait rétrécir l'écureuil jusqu'à sa taille normale
+    if (birdScale > 1) birdScale = Math.max(1, birdScale - SHRINK_PER_FLAP);
   }
 }
 
@@ -661,16 +668,19 @@ function update() {
   }
   pipes = pipes.filter(p => p.x + PIPE_W > -10);
 
+  // rayon effectif (l'écureuil agrandi par le burger est plus gros donc plus exposé)
+  const er = bird.r * birdScale;
+
   // Le sol reste mortel (chute) ; le plafond bloque sans dégât
-  if (bird.y + bird.r > GROUND_Y) { bird.y = GROUND_Y - bird.r; lives = 0; die('ground'); }
-  if (bird.y - bird.r < 0) { bird.y = bird.r; bird.vy = 0; }
+  if (bird.y + er > GROUND_Y) { bird.y = GROUND_Y - er; lives = 0; die('ground'); }
+  if (bird.y - er < 0) { bird.y = er; bird.vy = 0; }
 
   // Fumée : on peut la traverser, mais chaque contact coûte une vie (avec invincibilité)
   const invincible = Date.now() < invincibleUntil;
   for (const p of pipes) {
-    const inX = bird.x + bird.r > p.x && bird.x - bird.r < p.x + PIPE_W;
-    const inTop = bird.y - bird.r < p.top;
-    const inBot = bird.y + bird.r > p.top + PIPE_GAP;
+    const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
+    const inTop = bird.y - er < p.top;
+    const inBot = bird.y + er > p.top + PIPE_GAP;
     if (inX && (inTop || inBot) && !invincible) {
       takeHit();
       break;
@@ -711,9 +721,10 @@ function update() {
   for (const wgt of weights) {
     wgt.x -= speed;
     wgt.y = wgt.baseY + Math.sin((frame + wgt.phase * 10) * 0.06) * 5;
-    if (Math.hypot(wgt.x - bird.x, wgt.y - bird.y) < bird.r + BOULET_R + 8) {
+    if (Math.hypot(wgt.x - bird.x, wgt.y - bird.y) < bird.r * birdScale + BOULET_R + 8) {
       wgt.taken = true;
       slowUntil = Date.now() + SLOW_MS;   // ralentit le jeu pendant SLOW_MS
+      birdScale = Math.min(MAX_SCALE, birdScale + BURGER_GROW); // l'écureuil grossit
     }
   }
   weights = weights.filter(wgt => !wgt.taken && wgt.x + BOULET_R > -10);
@@ -1198,7 +1209,7 @@ function drawBird() {
   ctx.rotate(bird.rot);
   // plus de vies perdues = plus gris (0 = couleur normale, 1 = tout gris)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
-  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor());
+  drawSquirrel(bird.r * SQUIRREL_SCALE * birdScale, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor());
   ctx.restore();
 }
 
