@@ -94,6 +94,74 @@
     transition: background .15s;
   }
   #homeBtn:hover { background: #fff; }
+  #customize {
+    position: absolute;
+    inset: 0;
+    z-index: 8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(20,24,28,.82);
+    color: #fff;
+    text-align: center;
+  }
+  #customize.hidden { display: none; }
+  #customize h2 { font-size: 24px; }
+  #preview {
+    background: linear-gradient(#9fa9ad, #c9c1ac);
+    border-radius: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,.4);
+  }
+  #shirtOptions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    max-width: 320px;
+  }
+  .swatch {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    position: relative;
+    box-shadow: 0 2px 6px rgba(0,0,0,.4);
+  }
+  .swatch.selected { border-color: #fff; transform: scale(1.12); }
+  .swatch.none {
+    background: #fff;
+    color: #c0392b;
+    font-size: 22px;
+    line-height: 34px;
+    font-weight: bold;
+  }
+  #closeCustomize {
+    margin-top: 6px;
+    border: none;
+    border-radius: 22px;
+    background: #2ecc71;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 10px 28px;
+    cursor: pointer;
+  }
+  #closeCustomize:hover { background: #27ae60; }
+  #customizeBtn {
+    margin-top: 14px;
+    border: none;
+    border-radius: 22px;
+    background: rgba(255,255,255,.9);
+    color: #333;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 9px 20px;
+    cursor: pointer;
+  }
+  #customizeBtn:hover { background: #fff; }
 </style>
 </head>
 <body>
@@ -101,22 +169,43 @@
   <canvas id="game" width="400" height="600"></canvas>
   <button id="pauseBtn" aria-label="Pause">⏸</button>
   <button id="homeBtn">🏠 Accueil</button>
+  <div id="customize" class="hidden">
+    <h2>👕 Personnalisation</h2>
+    <canvas id="preview" width="180" height="130"></canvas>
+    <div id="shirtOptions"></div>
+    <button id="closeCustomize">Valider</button>
+  </div>
   <div id="overlay">
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
-    <p>Évite les obstacles  — chaque contact coûte une vie ❤️ (3 max)</p>
+    <p>Évite les obstacles  — chaque contact coûte une vie ❤️</p>
     <div class="hint">Clique pour commencer</div>
   </div>
 </div>
 
 <script>
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+let ctx = canvas.getContext('2d');   // réassignable (utilisé aussi pour l'aperçu de personnalisation)
 const overlay = document.getElementById('overlay');
 const pauseBtn = document.getElementById('pauseBtn');
 const homeBtn = document.getElementById('homeBtn');
 const W = canvas.width, H = canvas.height;
 let paused = false;
+
+// --- Personnalisation : t-shirt de l'écureuil ---
+const SHIRTS = [
+  { name: 'Aucun',  color: null },
+  { name: 'Rouge',  color: [231, 76, 60] },
+  { name: 'Bleu',   color: [52, 152, 219] },
+  { name: 'Vert',   color: [46, 204, 113] },
+  { name: 'Jaune',  color: [241, 196, 15] },
+  { name: 'Violet', color: [155, 89, 182] },
+  { name: 'Rose',   color: [255, 111, 174] },
+  { name: 'Noir',   color: [52, 52, 60] }
+];
+let shirtIndex = Number(localStorage.getItem('floppyShirt') || 0);
+if (!(shirtIndex >= 0 && shirtIndex < SHIRTS.length)) shirtIndex = 0;
+function currentShirtColor() { return SHIRTS[shirtIndex].color; }
 
 // --- Paramètres du jeu ---
 const GRAVITY = 0.13;
@@ -208,6 +297,54 @@ function goHome() {
   showReady();
 }
 
+// ---- Menu de personnalisation (t-shirt) ----
+const customizeEl = document.getElementById('customize');
+const previewCanvas = document.getElementById('preview');
+const previewCtx = previewCanvas.getContext('2d');
+const shirtOptionsEl = document.getElementById('shirtOptions');
+
+function drawPreview() {
+  previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+  const saved = ctx;
+  ctx = previewCtx;                 // drawSquirrel dessine sur le canvas d'aperçu
+  ctx.save();
+  ctx.translate(previewCanvas.width / 2 - 12, previewCanvas.height / 2 + 6);
+  drawSquirrel(20, [150, 92, 50], [38, 24, 14], 0, currentShirtColor());
+  ctx.restore();
+  ctx = saved;
+}
+
+function buildShirtOptions() {
+  shirtOptionsEl.innerHTML = '';
+  SHIRTS.forEach((s, i) => {
+    const el = document.createElement('div');
+    el.className = 'swatch' + (s.color ? '' : ' none') + (i === shirtIndex ? ' selected' : '');
+    el.title = s.name;
+    if (s.color) el.style.background = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
+    else el.textContent = '∅';
+    el.addEventListener('click', () => {
+      shirtIndex = i;
+      localStorage.setItem('floppyShirt', i);
+      buildShirtOptions();
+      drawPreview();
+    });
+    shirtOptionsEl.appendChild(el);
+  });
+}
+
+function openCustomize() {
+  overlay.classList.add('hidden');
+  customizeEl.classList.remove('hidden');
+  buildShirtOptions();
+  drawPreview();
+}
+
+function closeCustomize() {
+  customizeEl.classList.add('hidden');
+  showReady();
+}
+document.getElementById('closeCustomize').addEventListener('click', closeCustomize);
+
 function spawnPipe() {
   const margin = 60;
   const top = margin + Math.random() * (GROUND_Y - PIPE_GAP - margin * 2);
@@ -254,12 +391,16 @@ function startCountdown() {
 
 function showReady() {
   overlay.classList.remove('hidden');
-  overlay.querySelector('h1').textContent = '🐿️ Floppy Squirrel';
   overlay.innerHTML = `
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
     <p>Évite les obstacles 💨🪚 — chaque contact coûte une vie ❤️ (3 max)</p>
+    <button id="customizeBtn">👕 Personnaliser</button>
     <div class="hint">Clique pour commencer</div>`;
+  const cb = document.getElementById('customizeBtn');
+  const open = (e) => { e.preventDefault(); e.stopPropagation(); openCustomize(); };
+  cb.addEventListener('mousedown', open);
+  cb.addEventListener('touchstart', open, { passive: false });
 }
 
 function showDead(cause) {
@@ -542,7 +683,7 @@ function mix(c1, c2, t) {
 
 // Dessine un écureuil volant (façon illustration) centré sur l'origine, orienté vers la droite.
 // r = taille, bodyRgb/strokeRgb = couleur, dmg = grisaille (0 normal → 1 tout gris)
-function drawSquirrel(r, bodyRgb, strokeRgb, dmg) {
+function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt) {
   const grey = [110, 110, 110];
   const body = mix(bodyRgb, grey, dmg);
   const stroke = mix(strokeRgb, [60, 60, 60], dmg);
@@ -613,6 +754,23 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg) {
   ctx.beginPath();
   ctx.ellipse(r * 0.55, r * 0.18, r * 0.95, r * 0.42, -0.12, 0, Math.PI * 2);
   ctx.fill();
+
+  // ---- T-SHIRT (optionnel) : bande colorée sur le torse, limitée à la silhouette du corps ----
+  if (shirt) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(r * 0.05, -r * 0.1, r * 1.35, r * 0.78, -0.12, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.translate(r * 0.05, -r * 0.1);
+    ctx.rotate(-0.12);
+    ctx.fillStyle = `rgb(${shirt[0]},${shirt[1]},${shirt[2]})`;
+    ctx.fillRect(-r * 0.78, -r * 0.95, r * 1.2, r * 1.9);   // corps du t-shirt
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';                      // ourlet du bas
+    ctx.fillRect(-r * 0.78, r * 0.7, r * 1.2, r * 0.2);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';               // léger reflet
+    ctx.fillRect(-r * 0.78, -r * 0.95, r * 0.28, r * 1.9);
+    ctx.restore();
+  }
 
   // ---- PATTE avant tendue vers l'avant (haut-droite) ----
   ctx.fillStyle = body;
@@ -693,7 +851,7 @@ function drawBird() {
   ctx.rotate(bird.rot);
   // plus de vies perdues = plus gris (0 = couleur normale, 1 = tout gris)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
-  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg);
+  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor());
   ctx.restore();
 }
 
@@ -1205,6 +1363,7 @@ function homeHandler(e) { e.preventDefault(); e.stopPropagation(); goHome(); }
 homeBtn.addEventListener('mousedown', homeHandler);
 homeBtn.addEventListener('touchstart', homeHandler, { passive: false });
 
+showReady();   // affiche l'accueil (avec le bouton Personnaliser) dès le chargement
 requestAnimationFrame(loop);
 </script>
 </body>
