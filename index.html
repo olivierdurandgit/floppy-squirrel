@@ -201,6 +201,7 @@
       <button class="tab" data-tab="shirt">👕 T-shirt</button>
       <button class="tab" data-tab="hat">🎩 Chapeau</button>
       <button class="tab" data-tab="glasses">🕶️ Lunettes</button>
+      <button class="tab" data-tab="socks">🧦 Chaussette</button>
     </div>
     <div id="shirtOptions"></div>
     <button id="closeCustomize">Valider</button>
@@ -246,15 +247,28 @@ const GLASSES = [
   { name: 'Rondes', type: 'round' },
   { name: '3D', type: '3d' }
 ];
+const SOCKS = [
+  { name: 'Aucune', color: null },
+  { name: 'Rouge',  color: [231, 76, 60] },
+  { name: 'Bleu',   color: [52, 152, 219] },
+  { name: 'Vert',   color: [46, 204, 113] },
+  { name: 'Jaune',  color: [241, 196, 15] },
+  { name: 'Violet', color: [155, 89, 182] },
+  { name: 'Rose',   color: [255, 111, 174] },
+  { name: 'Blanc',  color: [245, 245, 245] }
+];
 let shirtIndex = Number(localStorage.getItem('floppyShirt') || 0);
 let hatIndex = Number(localStorage.getItem('floppyHat') || 0);
 let glassesIndex = Number(localStorage.getItem('floppyGlasses') || 0);
+let socksIndex = Number(localStorage.getItem('floppySocks') || 0);
 if (!(shirtIndex >= 0 && shirtIndex < SHIRTS.length)) shirtIndex = 0;
 if (!(hatIndex >= 0 && hatIndex < HATS.length)) hatIndex = 0;
 if (!(glassesIndex >= 0 && glassesIndex < GLASSES.length)) glassesIndex = 0;
+if (!(socksIndex >= 0 && socksIndex < SOCKS.length)) socksIndex = 0;
 function currentShirtColor() { return SHIRTS[shirtIndex].color; }
 function currentHatType() { return HATS[hatIndex].type; }
 function currentGlassesType() { return GLASSES[glassesIndex].type; }
+function currentSocksColor() { return SOCKS[socksIndex].color; }
 
 // --- Paramètres du jeu ---
 const GRAVITY = 0.13;
@@ -361,7 +375,7 @@ function drawPreview() {
   ctx.save();
   ctx.translate(previewCanvas.width / 2 - 12, previewCanvas.height / 2 + 6);
   drawSquirrel(20, [150, 92, 50], [38, 24, 14], 0,
-    currentShirtColor(), currentHatType(), currentGlassesType());
+    currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor());
   ctx.restore();
   ctx = saved;
 }
@@ -372,15 +386,19 @@ function buildOptions() {
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === currentTab));
 
-  if (currentTab === 'shirt') {
-    SHIRTS.forEach((s, i) => {
+  if (currentTab === 'shirt' || currentTab === 'socks') {
+    const list = currentTab === 'shirt' ? SHIRTS : SOCKS;
+    const sel = currentTab === 'shirt' ? shirtIndex : socksIndex;
+    const key = currentTab === 'shirt' ? 'floppyShirt' : 'floppySocks';
+    list.forEach((s, i) => {
       const el = document.createElement('div');
-      el.className = 'swatch' + (s.color ? '' : ' none') + (i === shirtIndex ? ' selected' : '');
+      el.className = 'swatch' + (s.color ? '' : ' none') + (i === sel ? ' selected' : '');
       el.title = s.name;
       if (s.color) el.style.background = `rgb(${s.color[0]},${s.color[1]},${s.color[2]})`;
       else el.textContent = '∅';
       el.addEventListener('click', () => {
-        shirtIndex = i; localStorage.setItem('floppyShirt', i);
+        if (currentTab === 'shirt') shirtIndex = i; else socksIndex = i;
+        localStorage.setItem(key, i);
         buildOptions(); drawPreview();
       });
       shirtOptionsEl.appendChild(el);
@@ -761,7 +779,7 @@ function mix(c1, c2, t) {
 
 // Dessine un écureuil volant (façon illustration) centré sur l'origine, orienté vers la droite.
 // r = taille, bodyRgb/strokeRgb = couleur, dmg = grisaille (0 normal → 1 tout gris)
-function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses) {
+function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses, socks) {
   const grey = [110, 110, 110];
   const body = mix(bodyRgb, grey, dmg);
   const stroke = mix(strokeRgb, [60, 60, 60], dmg);
@@ -921,6 +939,9 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses) {
   ctx.moveTo(r * 2.2, r * 0.18); ctx.quadraticCurveTo(r * 2.8, r * 0.35, r * 3.1, r * 0.55);
   ctx.stroke();
 
+  // ---- CHAUSSETTES (optionnel) : sur les pattes ----
+  if (socks) drawSocks(r, socks);
+
   // ---- CHAPEAU (optionnel) : par-dessus la tête ----
   if (hat) drawHat(r, hat);
 
@@ -963,6 +984,31 @@ function drawGlasses(r, type) {
   ctx.moveTo(ex + lr * 0.85, ey + lr * 0.1);
   ctx.lineTo(ex + lr * 1.5, ey + lr * 0.25);
   ctx.stroke();
+}
+
+// Chaussettes (coordonnées locales) : sur la patte arrière et la patte avant
+function drawSocks(r, color) {
+  const c = `rgb(${color[0]},${color[1]},${color[2]})`;
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = Math.max(1, r * 0.06);
+  // patte arrière (en bas à gauche)
+  ctx.save();
+  ctx.translate(-r * 1.7, r * 1.0);
+  ctx.rotate(0.5);
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.4, r * 0.24, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillRect(-r * 0.4, -r * 0.24, r * 0.8, r * 0.08); // liseré du haut
+  ctx.restore();
+  // patte avant (en haut à droite)
+  ctx.save();
+  ctx.translate(r * 2.5, -r * 0.5);
+  ctx.rotate(-0.5);
+  ctx.fillStyle = c;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.36, r * 0.22, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillRect(-r * 0.36, -r * 0.22, r * 0.72, r * 0.07);
+  ctx.restore();
 }
 
 // Chapeau (coordonnées locales ; sommet du crâne ~ (1.35r, -1.0r))
@@ -1045,7 +1091,7 @@ function drawBird() {
   ctx.rotate(bird.rot);
   // plus de vies perdues = plus gris (0 = couleur normale, 1 = tout gris)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
-  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType());
+  drawSquirrel(bird.r * SQUIRREL_SCALE, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor());
   ctx.restore();
 }
 
