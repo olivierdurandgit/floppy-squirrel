@@ -322,6 +322,8 @@ let frame = 0;
 let state = 'ready'; // 'ready' | 'countdown' | 'play' | 'dead'
 let countdownStart = 0;
 const REPLAY_DELAY = 3000; // ms d'attente (compte à rebours) avant que la partie démarre
+let deadAt = 0;
+const DEAD_LOCK = 1000;    // ms pendant lesquelles le clic est ignoré après la mort
 const MAX_LIVES = 3;
 let lives = MAX_LIVES;
 let invincibleUntil = 0;       // timestamp ms : invincibilité après avoir pris un dégât
@@ -500,7 +502,11 @@ function spawnPipe() {
 
 function flap() {
   if (paused) return;                  // pas de saut quand le jeu est en pause
-  if (state === 'ready' || state === 'dead') {
+  if (state === 'dead') {
+    // verrou : on ne peut pas rejouer pendant 1 s après la mort
+    if (Date.now() - deadAt < DEAD_LOCK) return;
+    startCountdown();
+  } else if (state === 'ready') {
     // le clic lance le compte à rebours ; la partie démarre après le délai
     startCountdown();
   } else if (state === 'countdown') {
@@ -582,6 +588,7 @@ function takeHit() {
 
 function die(cause) {
   state = 'dead';
+  deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
   if (score > best) { best = score; localStorage.setItem('flappyBest', best); }
   showDead(cause);
 }
