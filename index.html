@@ -505,7 +505,7 @@ function spawnPipe() {
     });
   }
   // champignon hallucinogène entre les colonnes (parfois, hors tuyaux à écureuil)
-  if (pipeCount % 10 !== 0 && Math.random() < 0.12) {
+  if (pipeCount % 10 !== 0 && Math.random() < 0.06) {
     mushrooms.push({
       x: W + PIPE_W / 2,
       baseY: top + PIPE_GAP * (0.3 + Math.random() * 0.4),
@@ -562,7 +562,10 @@ function showDead(cause) {
     : scene === 'lake'
       ? 'Floppy s’est noyé dans le sable'
       : 'Floppy a inhalé trop de fumée';
-  const msg = cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg;
+  // si on meurt sous l'effet d'un champignon, message dédié
+  const msg = (Date.now() < tripUntil)
+    ? 'Il vaut mieux éviter de manger certaines choses…'
+    : (cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg);
   overlay.classList.remove('hidden');
   overlay.innerHTML = `
     <h1>💥 Perdu !</h1>
