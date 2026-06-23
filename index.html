@@ -81,7 +81,8 @@ const GRAVITY = 0.13;
 const FLAP = -4.0;
 const PIPE_W = 60;
 const PIPE_GAP = 170;
-const PIPE_INTERVAL = 145;     // distance horizontale entre tuyaux (en frames de spawn)
+const PIPE_INTERVAL = 145;     // cadence indicative de spawn (en frames)
+const MIN_PIPE_DISTANCE = 240; // distance horizontale minimale entre deux piliers (px)
 const BASE_SPEED = 1.6;        // vitesse de départ
 const SPEED_FROM = 50;         // score à partir duquel la vitesse augmente
 const DOUBLE_FROM = 100;       // score à partir duquel les points doublent
@@ -250,7 +251,11 @@ function update() {
   // Au-delà de 100 points : chaque obstacle franchi rapporte 2 points au lieu de 1
   const pointsPerPipe = score >= DOUBLE_FROM ? 2 : 1;
 
-  if (frame % PIPE_INTERVAL === 0 || pipes.length === 0) spawnPipe();
+  // Spawn d'un pilier seulement si le dernier est assez loin (distance minimale garantie)
+  const lastPipe = pipes.length ? pipes[pipes.length - 1] : null;
+  const dueByTime = frame % PIPE_INTERVAL === 0;
+  const farEnough = !lastPipe || (W - lastPipe.x) >= MIN_PIPE_DISTANCE;
+  if (!lastPipe || (dueByTime && farEnough)) spawnPipe();
 
   for (const p of pipes) {
     p.x -= speed;
@@ -283,7 +288,7 @@ function update() {
   if (trail.length > maxTrail) trail.length = maxTrail;
 
   // Petits oiseaux libres : déplacement, ondulation, et capture
-  const CAPTURE_MARGIN = 38;   // agrandit la zone de capture
+  const CAPTURE_MARGIN = 10;   // petite tolérance autour de l'écureuil
   for (const b of freeBirds) {
     b.x -= speed;
     b.y = b.baseY + Math.sin((frame + b.phase * 10) * 0.08) * 6;
