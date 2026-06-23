@@ -306,7 +306,7 @@ let slowUntil = 0;         // timestamp ms : fin du ralentissement
 const BOULET_R = 12;
 const SLOW_MS = 6000;      // durée du ralentissement
 const SLOW_FACTOR = 0.45;  // facteur de vitesse pendant le ralentissement
-const HEAVY_GRAVITY = 2.2; // multiplicateur de gravité quand le boulet est actif (saut inchangé)
+const HEAVY_GRAVITY = 1.8; // multiplicateur de gravité quand le burger est actif (saut inchangé)
 let freeBirds = [];        // petits oiseaux à attraper (flottent entre les tuyaux)
 let followers = [];        // petits oiseaux attrapés qui suivent le gros oiseau
 let trail = [];            // historique des positions du gros oiseau (pour le suivi)
@@ -512,21 +512,16 @@ function spawnPipe() {
       stroke: col.stroke
     });
   }
-  // champignon hallucinogène entre les colonnes (parfois, hors tuyaux à écureuil)
-  if (pipeCount % 10 !== 0 && Math.random() < 0.06) {
-    mushrooms.push({
-      x: W + PIPE_W / 2,
-      baseY: top + PIPE_GAP * (0.3 + Math.random() * 0.4),
-      phase: Math.random() * Math.PI * 2
-    });
-  }
-  // boulet entre les colonnes (même chance que le champignon) : ralentit le jeu
-  if (pipeCount % 10 !== 0 && Math.random() < 0.06) {
-    weights.push({
-      x: W + PIPE_W / 2,
-      baseY: top + PIPE_GAP * (0.3 + Math.random() * 0.4),
-      phase: Math.random() * Math.PI * 2
-    });
+  // item entre les colonnes (hors tuyaux à écureuil) : champignon OU burger, jamais les deux
+  if (pipeCount % 10 !== 0) {
+    const itemY = top + PIPE_GAP * (0.3 + Math.random() * 0.4);
+    if (Math.random() < 0.06) {
+      // champignon hallucinogène
+      mushrooms.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
+    } else if (Math.random() < 0.06) {
+      // burger (même chance) : ralentit + alourdit
+      weights.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
+    }
   }
 }
 
