@@ -250,6 +250,7 @@ let paused = false;
 let cheatUnlocked = false;
 let godMode = false;
 let codeBuffer = '';
+let cheatSpeed = 1;   // code 4589 : multiplie la vitesse du jeu (1 ou 2)
 
 // --- Personnalisation : t-shirt de l'écureuil ---
 const SHIRTS = [
@@ -1989,6 +1990,13 @@ function draw() {
     const total = Math.max(MAX_LIVES, lives);
     for (let i = 0; i < total; i++) hearts += i < lives ? '❤️' : '🤍';
     ctx.fillText(hearts, 12, 34);
+
+    // indicateur de triche vitesse ×2
+    if (cheatSpeed > 1) {
+      ctx.fillStyle = '#ffd86b';
+      ctx.font = 'bold 16px Segoe UI, Arial';
+      ctx.fillText('⏩ ×2', 12, 56);
+    }
   }
 
   // ---- EFFET HALLUCINOGÈNE : couleurs partout (par-dessus, sans zoom) ----
@@ -2045,7 +2053,7 @@ function loop(now) {
 
   // évite de « rattraper » trop d'un coup (onglet en arrière-plan, gros lag)
   if (elapsed > 250) elapsed = 250;
-  acc += elapsed * SPEED_MULT;
+  acc += elapsed * SPEED_MULT * cheatSpeed;   // cheatSpeed = code 4589
   while (acc >= STEP_MS) {
     update();
     updateCountdown();
@@ -2075,10 +2083,11 @@ overlay.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { p
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
   else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
-  // code secret 1203 : déverrouille le bouton d'invincibilité
+  // codes secrets : 1203 = bouton d'invincibilité, 4589 = vitesse ×2
   if (e.key >= '0' && e.key <= '9') {
     codeBuffer = (codeBuffer + e.key).slice(-4);
-    if (codeBuffer === '1203') { cheatUnlocked = true; }
+    if (codeBuffer === '1203') cheatUnlocked = true;
+    else if (codeBuffer === '4589') cheatSpeed = (cheatSpeed === 1) ? 2 : 1;
   }
 });
 
