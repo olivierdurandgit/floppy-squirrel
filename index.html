@@ -355,6 +355,9 @@ const SCENE_EVERY = 4;                 // change de décor tous les 4 écureuils
 const SCENES = ['forest', 'lake', 'factory']; // forêt coupée / désert (lac asséché) / usines
 let scene = null;                      // décor actif (null = usines au début)
 let nextSceneChange = SCENE_EVERY;
+let pendingScene = null;               // décor en attente pendant la transition
+let transStart = -99999;               // timestamp ms du début de la transition
+const TRANSITION_MS = 600;             // durée du fondu entre décors
 
 function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
@@ -378,6 +381,8 @@ function reset() {
   speed = BASE_SPEED;
   scene = SCENES[Math.floor(Math.random() * SCENES.length)]; // décor de départ aléatoire
   nextSceneChange = SCENE_EVERY;
+  pendingScene = null;
+  transStart = -99999;
   paused = false;
   bgScroll = 0;
 }
@@ -762,11 +767,18 @@ function update() {
     nextLifeAt += LIFE_EVERY;
   }
 
-  // Tous les 4 écureuils sauvés : on tire un nouveau décor au hasard (jamais 2 fois le même d'affilée)
+  // Tous les 4 écureuils sauvés : on prépare un nouveau décor (jamais 2 fois le même d'affilée)
   while (followers.length >= nextSceneChange) {
-    const choices = SCENES.filter(s => s !== scene);
-    scene = choices[Math.floor(Math.random() * choices.length)];
+    const base = pendingScene || scene;
+    const choices = SCENES.filter(s => s !== base);
+    pendingScene = choices[Math.floor(Math.random() * choices.length)];
+    transStart = Date.now();           // démarre le fondu
     nextSceneChange += SCENE_EVERY;
+  }
+  // bascule du décor au milieu du fondu (caché par le voile)
+  if (pendingScene && Date.now() - transStart >= TRANSITION_MS / 2) {
+    scene = pendingScene;
+    pendingScene = null;
   }
 
   // Oiseaux qui suivent : file indienne derrière le gros oiseau (décalés vers la gauche),
@@ -1833,6 +1845,14 @@ function draw() {
   }
 
   ctx.restore();   // fin du zoom
+
+  // ---- TRANSITION entre décors : voile de brume qui passe (0 → opaque → 0) ----
+  const tElapsed = Date.now() - transStart;
+  if (tElapsed < TRANSITION_MS) {
+    const a = Math.sin((tElapsed / TRANSITION_MS) * Math.PI); // 0..1..0
+    ctx.fillStyle = `rgba(175, 183, 188, ${a})`;
+    ctx.fillRect(0, 0, W, H);
+  }
 
   // ---- EFFET HALLUCINOGÈNE : couleurs partout (par-dessus, sans zoom) ----
   if (tripping) drawTrip();
