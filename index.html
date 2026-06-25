@@ -358,9 +358,10 @@ const SCENE_EVERY = 4;                 // change de décor tous les 4 écureuils
 const SCENES = ['forest', 'lake', 'factory']; // forêt coupée / désert (lac asséché) / usines
 let scene = null;                      // décor actif (null = usines au début)
 let nextSceneChange = SCENE_EVERY;
-let pendingScene = null;               // décor en attente pendant la transition
+let fromScene = null;                  // décor qui sort pendant la transition
+let toScene = null;                    // décor qui entre pendant la transition
 let transStart = -99999;               // timestamp ms du début de la transition
-const TRANSITION_MS = 600;             // durée du fondu entre décors
+const TRANSITION_MS = 700;             // durée du glissement entre décors
 
 function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
@@ -385,7 +386,7 @@ function reset() {
   speed = BASE_SPEED;
   scene = SCENES[Math.floor(Math.random() * SCENES.length)]; // décor de départ aléatoire
   nextSceneChange = SCENE_EVERY;
-  pendingScene = null;
+  fromScene = toScene = null;
   transStart = -99999;
   paused = false;
   bgScroll = 0;
@@ -518,7 +519,7 @@ document.getElementById('closeCustomize').addEventListener('click', closeCustomi
 function spawnPipe() {
   const margin = 60;
   const top = margin + Math.random() * (GROUND_Y - PIPE_GAP - margin * 2);
-  pipes.push({ x: W, top, passed: false, hitTop: false, hitBot: false, seed: Math.random() * 100 });
+  pipes.push({ x: W, top, passed: false, hitTop: false, hitBot: false, seed: Math.random() * 100, decor: scene });
   pipeCount++;
   // tous les 10 tuyaux : un petit oiseau à attraper, centré dans l'espace du tuyau
   if (pipeCount % 10 === 0) {
@@ -780,18 +781,14 @@ function update() {
     nextLifeAt += LIFE_EVERY;
   }
 
-  // Tous les 4 écureuils sauvés : on prépare un nouveau décor (jamais 2 fois le même d'affilée)
+  // Tous les 4 écureuils sauvés : nouveau décor qui glisse (jamais 2 fois le même d'affilée)
   while (followers.length >= nextSceneChange) {
-    const base = pendingScene || scene;
-    const choices = SCENES.filter(s => s !== base);
-    pendingScene = choices[Math.floor(Math.random() * choices.length)];
-    transStart = Date.now();           // démarre le fondu
+    const choices = SCENES.filter(s => s !== scene);
+    fromScene = scene;
+    scene = choices[Math.floor(Math.random() * choices.length)];
+    toScene = scene;
+    transStart = Date.now();           // démarre le glissement
     nextSceneChange += SCENE_EVERY;
-  }
-  // bascule du décor au milieu du fondu (caché par le voile)
-  if (pendingScene && Date.now() - transStart >= TRANSITION_MS / 2) {
-    scene = pendingScene;
-    pendingScene = null;
   }
 
   // Oiseaux qui suivent : file indienne derrière le gros oiseau (décalés vers la gauche),
@@ -924,11 +921,11 @@ function drawChainsaw(cx, baseY, tipY) {
 
 function drawPipe(p) {
   const cx = p.x + PIPE_W / 2;
-  if (scene === 'forest') {
+  if (p.decor === 'forest') {
     // décor forêt : tronçonneuses (haut = moteur au plafond, bas = moteur au sol)
     drawChainsaw(cx, -8, p.top);
     drawChainsaw(cx, GROUND_Y, p.top + PIPE_GAP);
-  } else if (scene === 'lake') {
+  } else if (p.decor === 'lake') {
     // désert : piliers de sable
     drawSandColumn(cx, -10, p.top, p.seed);
     drawSandColumn(cx, GROUND_Y, p.top + PIPE_GAP, p.seed + 5);
@@ -937,6 +934,13 @@ function drawPipe(p) {
     drawSmokeRegion(cx, -10, p.top, p.seed);
     drawSmokeRegion(cx, p.top + PIPE_GAP, GROUND_Y, p.seed + 5);
   }
+}
+
+// dessine le décor d'arrière-plan d'une scène donnée (sur le sol déjà tracé)
+function drawSceneDecor(s) {
+  if (s === 'forest') drawCutForest();
+  else if (s === 'lake') drawDriedLake();
+  else drawFactories();   // 'factory' ou null
 }
 
 // Mélange deux couleurs RGB ([r,g,b]) selon t (0 = c1, 1 = c2)
@@ -1770,9 +1774,9 @@ function drawDeadFish(x, y, size, rot, c) {
 function drawDriedLake() {
   ensureLake();
   const bedTop = GROUND_Y - 4;
-  // lit du lac : vase craquelée beige
+  // lit du lac : vase craquelée beige (large pour couvrir pendant le glissement)
   ctx.fillStyle = '#bca972';
-  ctx.fillRect(0, bedTop, W, H - bedTop);
+  ctx.fillRect(-W, bedTop, 3 * W, H - bedTop);
   // ancienne rive (creux plus sombre vers le centre)
   ctx.fillStyle = 'rgba(120,100,60,0.35)';
   ctx.beginPath();
@@ -1816,11 +1820,17 @@ function draw() {
     ctx.translate(-bird.x, -bird.y);
   }
   drawBackground();
-  // décor : usines au début, puis un décor catastrophe tiré au hasard tous les 4 écureuils
-  if (scene === null || scene === 'factory') drawFactories();
   drawGround();
-  if (scene === 'forest') drawCutForest();
-  else if (scene === 'lake') drawDriedLake();
+  // décor d'arrière-plan : glisse de droite à gauche lors d'un changement
+  const tElapsed = Date.now() - transStart;
+  if (tElapsed < TRANSITION_MS) {
+    const t = tElapsed / TRANSITION_MS;
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOut
+    ctx.save(); ctx.translate(-e * W, 0); drawSceneDecor(fromScene); ctx.restore();      // sort à gauche
+    ctx.save(); ctx.translate((1 - e) * W, 0); drawSceneDecor(toScene); ctx.restore();   // entre par la droite
+  } else {
+    drawSceneDecor(scene);
+  }
   // obstacles au premier plan
   for (const p of pipes) drawPipe(p);
   // grisaille commune (selon les vies perdues)
@@ -1875,14 +1885,6 @@ function draw() {
   }
 
   ctx.restore();   // fin du zoom
-
-  // ---- TRANSITION entre décors : voile de brume qui passe (0 → opaque → 0) ----
-  const tElapsed = Date.now() - transStart;
-  if (tElapsed < TRANSITION_MS) {
-    const a = Math.sin((tElapsed / TRANSITION_MS) * Math.PI); // 0..1..0
-    ctx.fillStyle = `rgba(175, 183, 188, ${a})`;
-    ctx.fillRect(0, 0, W, H);
-  }
 
   // ---- EFFET HALLUCINOGÈNE : couleurs partout (par-dessus, sans zoom) ----
   if (tripping) drawTrip();
