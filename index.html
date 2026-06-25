@@ -308,9 +308,9 @@ const TRIP_MS = 6000;      // durée de l'effet « couleurs partout »
 let weights = [];          // burgers (alourdissent et ralentissent selon la taille)
 const BOULET_R = 12;
 let shields = [];          // items bouclier (bulle de protection)
-let shieldUntil = 0;       // timestamp ms : fin de la protection
+let shieldHits = 0;        // utilisations restantes (se fissure après 1, disparaît après 2)
 const SHIELD_R = 12;
-const SHIELD_MS = 4000;    // durée de la protection
+const SHIELD_USES = 2;     // nombre d'utilisations du bouclier
 const SHIELD_BOUNCE = -7;  // rebond quand on touche le sol sous protection
 // Effet burger lié à la TAILLE de l'écureuil : plus il est gros, plus c'est lent et lourd.
 // En maigrissant (à chaque saut), la vitesse réaccélère et la gravité revient à la normale.
@@ -367,7 +367,7 @@ function reset() {
   tripUntil = 0;
   weights = [];
   shields = [];
-  shieldUntil = 0;
+  shieldHits = 0;
   freeBirds = [];
   followers = [];
   trail = [];
@@ -638,6 +638,12 @@ function takeHit() {
   if (lives <= 0) { lives = 0; die('smoke'); }
 }
 
+// Le bouclier encaisse un coup (utilisation) ; petite invincibilité pour ne pas le vider d'un coup
+function consumeShield() {
+  shieldHits = Math.max(0, shieldHits - 1);
+  invincibleUntil = Date.now() + HIT_INVINCIBLE;
+}
+
 function die(cause) {
   state = 'dead';
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
@@ -687,23 +693,25 @@ function update() {
 
   // rayon effectif (l'écureuil agrandi par le burger est plus gros donc plus exposé)
   const er = bird.r * birdScale;
-  const shielded = Date.now() < shieldUntil;   // bulle de protection active ?
+  const shielded = shieldHits > 0;             // bulle de protection active ?
+  const grace = Date.now() < invincibleUntil;  // courte invincibilité (anti-rebond)
 
-  // Sol : mortel normalement, mais sous bouclier on rebondit
+  // Sol : mortel normalement, mais sous bouclier on rebondit (consomme une utilisation)
   if (bird.y + er > GROUND_Y) {
-    if (shielded) { bird.y = GROUND_Y - er; bird.vy = SHIELD_BOUNCE; }
+    if (shielded) { bird.y = GROUND_Y - er; bird.vy = SHIELD_BOUNCE; if (!grace) consumeShield(); }
     else { bird.y = GROUND_Y - er; lives = 0; die('ground'); }
   }
   if (bird.y - er < 0) { bird.y = er; bird.vy = 0; }
 
-  // Fumée : on peut la traverser, mais chaque contact coûte une vie (sauf invincibilité/bouclier)
-  const invincible = Date.now() < invincibleUntil || shielded;
+  // Obstacles : contact = perte de vie, sauf grâce ; le bouclier encaisse (consomme une utilisation)
   for (const p of pipes) {
     const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
     const inTop = bird.y - er < p.top;
     const inBot = bird.y + er > p.top + PIPE_GAP;
-    if (inX && (inTop || inBot) && !invincible) {
-      takeHit();
+    if (inX && (inTop || inBot)) {
+      if (grace) { /* invincibilité en cours : on ignore */ }
+      else if (shielded) { consumeShield(); }
+      else takeHit();
       break;
     }
   }
@@ -756,7 +764,7 @@ function update() {
     sh.y = sh.baseY + Math.sin((frame + sh.phase * 10) * 0.07) * 6;
     if (Math.hypot(sh.x - bird.x, sh.y - bird.y) < bird.r * birdScale + SHIELD_R + 8) {
       sh.taken = true;
-      shieldUntil = Date.now() + SHIELD_MS;   // bulle de protection pendant SHIELD_MS
+      shieldHits = SHIELD_USES;   // bouclier à 2 utilisations
     }
   }
   shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
@@ -1574,19 +1582,17 @@ function drawShield(x, y) {
   ctx.beginPath(); ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.2, r * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
 }
 
-// bulle de protection autour de l'écureuil (quand le bouclier est actif)
-function drawShieldBubble(x, y, radius) {
-  const remaining = shieldUntil - Date.now();
-  // clignote sur la dernière seconde
-  if (remaining < 1000 && Math.floor(frame / 4) % 2 === 0) return;
+// bulle de protection autour de l'écureuil ; `hits` = utilisations restantes (1 = fissurée)
+function drawShieldBubble(x, y, radius, hits) {
   ctx.save();
+  const cracked = hits <= 1;
   const grad = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
   grad.addColorStop(0, 'rgba(150,210,255,0.05)');
-  grad.addColorStop(0.8, 'rgba(120,200,255,0.18)');
-  grad.addColorStop(1, 'rgba(150,225,255,0.4)');
+  grad.addColorStop(0.8, `rgba(120,200,255,${cracked ? 0.12 : 0.18})`);
+  grad.addColorStop(1, `rgba(150,225,255,${cracked ? 0.28 : 0.4})`);
   ctx.fillStyle = grad;
   ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = 'rgba(180,230,255,0.8)';
+  ctx.strokeStyle = cracked ? 'rgba(180,220,255,0.55)' : 'rgba(180,230,255,0.8)';
   ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
   // petit reflet qui tourne
@@ -1595,6 +1601,23 @@ function drawShieldBubble(x, y, radius) {
   ctx.beginPath();
   ctx.ellipse(x + Math.cos(a) * radius * 0.6, y + Math.sin(a) * radius * 0.6, 3, 2, a, 0, Math.PI * 2);
   ctx.fill();
+  // fissures après la première utilisation
+  if (cracked) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.3;
+    const cracks = [
+      [-0.9, -0.2, -0.3, 0.1, 0.1, -0.4, 0.5, 0.0],
+      [0.2, 0.9, 0.0, 0.3, -0.3, 0.2]
+    ];
+    for (const cr of cracks) {
+      ctx.beginPath();
+      for (let i = 0; i < cr.length; i += 2) {
+        const px = x + cr[i] * radius, py = y + cr[i + 1] * radius;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+  }
   ctx.restore();
 }
 
@@ -1813,8 +1836,8 @@ function draw() {
   const invincible = Date.now() < invincibleUntil;
   if (!(invincible && Math.floor(frame / 5) % 2 === 0)) drawBird();
 
-  // bulle de protection autour de l'écureuil (bouclier actif)
-  if (Date.now() < shieldUntil) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10);
+  // bulle de protection autour de l'écureuil (bouclier actif) — fissurée après 1 utilisation
+  if (shieldHits > 0) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
 
   // score
   if (state === 'play' || state === 'dead') {
