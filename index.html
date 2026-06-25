@@ -245,6 +245,18 @@
     cursor: pointer;
   }
   #closeCustomize:hover { background: #27ae60; }
+  #modeRow { display: flex; gap: 10px; margin: 6px 0; }
+  #modeRow button {
+    border: none;
+    border-radius: 20px;
+    background: #2ecc71;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    padding: 12px 18px;
+    cursor: pointer;
+  }
+  #modeRow button:hover { background: #27ae60; }
   #customizeBtn, #deadHomeBtn {
     margin-top: 14px;
     border: none;
@@ -395,6 +407,10 @@ const BURGER_GROW = 0.8;       // grossissement par burger mangé
 const MAX_SCALE = 2.4;         // taille max
 const SHRINK_PER_FLAP = 0.12;  // rétrécissement à chaque saut
 let pipes = [];
+let gameMode = 'classic';  // 'classic' (colonnes) ou 'dodge' (objets à éviter)
+let objects = [];          // objets volants à éviter (mode dodge)
+let objectCount = 0;
+const OBJ_INTERVAL = 70;   // cadence d'apparition des objets (frames)
 let mushrooms = [];        // champignons hallucinogènes
 let tripUntil = 0;         // timestamp ms : fin de l'effet psychédélique
 const MUSH_R = 11;
@@ -461,6 +477,8 @@ function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
   birdScale = 1;
   pipes = [];
+  objects = [];
+  objectCount = 0;
   mushrooms = [];
   tripUntil = 0;
   weights = [];
@@ -647,16 +665,34 @@ function spawnPipe() {
   // item entre les colonnes (hors tuyaux à écureuil) : un seul à la fois
   if (pipeCount % 10 !== 0) {
     const itemY = top + PIPE_GAP * (0.3 + Math.random() * 0.4);
-    if (Math.random() < 0.06) {
-      // champignon hallucinogène
-      mushrooms.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
-    } else if (Math.random() < 0.035) {
-      // burger (plus rare) : ralentit + alourdit
-      weights.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
-    } else if (Math.random() < 0.03) {
-      // bouclier (3 %) : bulle de protection
-      shields.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
-    }
+    spawnItemAt(W + PIPE_W / 2, itemY);
+  }
+}
+
+// items (champignon / burger / bouclier) à une position donnée — partagé par les deux modes
+function spawnItemAt(x, y) {
+  if (Math.random() < 0.06) {
+    mushrooms.push({ x, baseY: y, phase: Math.random() * Math.PI * 2 });
+  } else if (Math.random() < 0.035) {
+    weights.push({ x, baseY: y, phase: Math.random() * Math.PI * 2 });
+  } else if (Math.random() < 0.03) {
+    shields.push({ x, baseY: y, phase: Math.random() * Math.PI * 2 });
+  }
+}
+
+// MODE OBJETS : apparition d'un objet volant à éviter (+ écureuils/items, mêmes mécaniques)
+function spawnObject() {
+  const y = 45 + Math.random() * (GROUND_Y - 90);
+  objects.push({ x: W + 24, y, r: 15 + Math.random() * 7, passed: false, rot: Math.random() * 6.28, spin: (Math.random() - 0.5) * 0.18 });
+  objectCount++;
+  if (objectCount % 10 === 0) {
+    // écureuil à attraper
+    const col = SMALL_PALETTE[smallColorIdx % SMALL_PALETTE.length];
+    smallColorIdx++;
+    const sy = 45 + Math.random() * (GROUND_Y - 90);
+    freeBirds.push({ x: W + 24, y: sy, baseY: sy, phase: Math.random() * Math.PI * 2, body: col.body, stroke: col.stroke });
+  } else {
+    spawnItemAt(W + 24, 45 + Math.random() * (GROUND_Y - 90));
   }
 }
 
@@ -695,13 +731,24 @@ function showReady() {
   overlay.innerHTML = `
     <h1>🐿️ Floppy Squirrel</h1>
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
-    <p>Évite les obstacles 💨🪚 — chaque contact coûte une vie ❤️ (3 max)</p>
-    <button id="customizeBtn">👕 Personnaliser</button>
-    <div class="hint">Clique pour commencer</div>`;
+    <p>Choisis un mode :</p>
+    <div id="modeRow">
+      <button id="modeClassic">🪵 Colonnes</button>
+      <button id="modeObjects">☄️ Objets</button>
+    </div>
+    <button id="customizeBtn">👕 Personnaliser</button>`;
   const cb = document.getElementById('customizeBtn');
-  const open = (e) => { e.preventDefault(); e.stopPropagation(); openCustomize(); };
-  cb.addEventListener('mousedown', open);
-  cb.addEventListener('touchstart', open, { passive: false });
+  const openCust = (e) => { e.preventDefault(); e.stopPropagation(); openCustomize(); };
+  cb.addEventListener('mousedown', openCust);
+  cb.addEventListener('touchstart', openCust, { passive: false });
+
+  const startWith = (mode) => (e) => { e.preventDefault(); e.stopPropagation(); gameMode = mode; startCountdown(); };
+  ['modeClassic', 'modeObjects'].forEach(id => {
+    const m = id === 'modeClassic' ? 'classic' : 'dodge';
+    const btn = document.getElementById(id);
+    btn.addEventListener('mousedown', startWith(m));
+    btn.addEventListener('touchstart', startWith(m), { passive: false });
+  });
 }
 
 function showDead(cause) {
@@ -802,20 +849,37 @@ function update() {
   // Au-delà de 100 points : chaque obstacle franchi rapporte 2 points au lieu de 1
   const pointsPerPipe = score >= DOUBLE_FROM ? 2 : 1;
 
-  // Spawn d'un pilier seulement si le dernier est assez loin (distance minimale garantie)
-  const lastPipe = pipes.length ? pipes[pipes.length - 1] : null;
-  const dueByTime = frame % PIPE_INTERVAL === 0;
-  const farEnough = !lastPipe || (W - lastPipe.x) >= MIN_PIPE_DISTANCE;
-  if (!lastPipe || (dueByTime && farEnough)) spawnPipe();
+  if (gameMode === 'classic') {
+    // Spawn d'un pilier seulement si le dernier est assez loin (distance minimale garantie)
+    const lastPipe = pipes.length ? pipes[pipes.length - 1] : null;
+    const dueByTime = frame % PIPE_INTERVAL === 0;
+    const farEnough = !lastPipe || (W - lastPipe.x) >= MIN_PIPE_DISTANCE;
+    if (!lastPipe || (dueByTime && farEnough)) spawnPipe();
 
-  for (const p of pipes) {
-    p.x -= speed;
-    if (!p.passed && p.x + PIPE_W < bird.x) {
-      p.passed = true;
-      score += pointsPerPipe;
+    for (const p of pipes) {
+      p.x -= speed;
+      if (!p.passed && p.x + PIPE_W < bird.x) {
+        p.passed = true;
+        score += pointsPerPipe;
+      }
+    }
+    pipes = pipes.filter(p => p.x + PIPE_W > -10);
+  } else {
+    // MODE OBJETS : apparition + déplacement des objets à éviter
+    if (frame % OBJ_INTERVAL === 0) spawnObject();
+    for (const o of objects) {
+      o.x -= speed;
+      o.rot += o.spin;
+      if (!o.passed && o.x < bird.x) { o.passed = true; score += pointsPerPipe; }
+    }
+    objects = objects.filter(o => o.x + o.r > -10);
+    // portail (flottant) tous les 75 points en mode objets
+    if (!portal && portalsSpawned === portalsCrossed &&
+        score >= INVERT_AT + portalsSpawned * PORTAL_EVERY) {
+      portal = { x: W + 30 };
+      portalsSpawned++;
     }
   }
-  pipes = pipes.filter(p => p.x + PIPE_W > -10);
 
   // rayon effectif (l'écureuil agrandi par le burger est plus gros donc plus exposé)
   const er = bird.r * birdScale;
@@ -831,16 +895,16 @@ function update() {
   if (bird.y - er < 0) { bird.y = er; bird.vy = 0; }
 
   // Obstacles : contact = perte de vie, sauf grâce/bouclier/invincibilité
-  for (const p of pipes) {
-    const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
-    const inTop = bird.y - er < p.top;
-    const inBot = bird.y + er > p.top + PIPE_GAP;
-    if (inX && (inTop || inBot)) {
-      if (godMode || grace) { /* invincible : on ignore */ }
-      else if (shielded) { consumeShield(); }
-      else takeHit();
-      break;
-    }
+  const hazards = (gameMode === 'classic')
+    ? pipes.some(p => {
+        const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
+        return inX && (bird.y - er < p.top || bird.y + er > p.top + PIPE_GAP);
+      })
+    : objects.some(o => Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r);
+  if (hazards) {
+    if (godMode || grace) { /* invincible : on ignore */ }
+    else if (shielded) { consumeShield(); }
+    else takeHit();
   }
 
   // Historique des positions du gros oiseau (pour le suivi en file)
@@ -1104,6 +1168,33 @@ function drawPortal(x) {
     }
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+// objet volant à éviter (mode dodge) : boule à pointes qui tourne
+function drawHazard(o) {
+  ctx.save();
+  ctx.translate(o.x, o.y);
+  ctx.rotate(o.rot);
+  ctx.fillStyle = '#3a3d42';
+  ctx.strokeStyle = '#16181b';
+  ctx.lineWidth = 2;
+  const n = 9;
+  ctx.beginPath();
+  for (let i = 0; i < n * 2; i++) {
+    const a = Math.PI * i / n;
+    const rr = (i % 2 === 0) ? o.r : o.r * 0.55;
+    const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // noyau
+  ctx.fillStyle = '#6b7077';
+  ctx.beginPath(); ctx.arc(0, 0, o.r * 0.42, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.arc(-o.r * 0.15, -o.r * 0.15, o.r * 0.14, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -2017,8 +2108,9 @@ function draw() {
   } else {
     drawScenePanel(scene, 0, W, 0);
   }
-  // obstacles au premier plan
-  for (const p of pipes) drawPipe(p);
+  // obstacles au premier plan (colonnes en classique, objets en mode dodge)
+  if (gameMode === 'classic') { for (const p of pipes) drawPipe(p); }
+  else { for (const o of objects) drawHazard(o); }
   // grisaille commune (selon les vies perdues)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
   // oiseaux qui suivent (dessinés derrière le gros oiseau) : grisonnent aussi
