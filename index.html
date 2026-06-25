@@ -450,7 +450,10 @@ const SMALL_PALETTE = [
 ];
 let smallColorIdx = 0;     // pour faire tourner les couleurs
 let score = 0;
-let best = Number(localStorage.getItem('flappyBest') || 0);
+// records personnels séparés par mode (l'ancien 'flappyBest' sert de base au mode Colonnes)
+let bestClassic = Number(localStorage.getItem('floppyBestClassic') || localStorage.getItem('flappyBest') || 0);
+let bestDodge = Number(localStorage.getItem('floppyBestDodge') || 0);
+function getBest() { return gameMode === 'dodge' ? bestDodge : bestClassic; }
 let frame = 0;
 let state = 'ready'; // 'ready' | 'countdown' | 'play' | 'dead'
 let countdownStart = 0;
@@ -733,8 +736,8 @@ function showReady() {
     <p>Clique ou appuie sur <b>Espace</b> pour planer</p>
     <p>Choisis un mode :</p>
     <div id="modeRow">
-      <button id="modeClassic">🪵 Colonnes</button>
-      <button id="modeObjects">☄️ Objets</button>
+      <button id="modeClassic">🪵 Colonnes<br><small>🏆 ${bestClassic}</small></button>
+      <button id="modeObjects">☄️ Objets<br><small>🏆 ${bestDodge}</small></button>
     </div>
     <button id="customizeBtn">👕 Personnaliser</button>`;
   const cb = document.getElementById('customizeBtn');
@@ -769,7 +772,7 @@ function showDead(cause) {
     <p>${msg}</p>
     <p>Score</p>
     <div class="big">${score}</div>
-    <p>Meilleur : ${best}</p>
+    <p>Meilleur (${gameMode === 'dodge' ? 'Objets' : 'Colonnes'}) : ${getBest()}</p>
     <button id="deadHomeBtn">🏠 Accueil</button>
     <div class="hint">Clique pour rejouer</div>`;
   const hb = document.getElementById('deadHomeBtn');
@@ -811,7 +814,10 @@ function die(cause) {
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
   // score non enregistré si une triche a été utilisée (code tapé, invincibilité, vitesse boostée)
   const cheated = cheatUsed || godMode || cheatSpeed > 1 || startScore > 0;
-  if (!cheated && score > best) { best = score; localStorage.setItem('flappyBest', best); }
+  if (!cheated && score > getBest()) {
+    if (gameMode === 'dodge') { bestDodge = score; localStorage.setItem('floppyBestDodge', score); }
+    else { bestClassic = score; localStorage.setItem('floppyBestClassic', score); }
+  }
   showDead(cause);
 }
 
