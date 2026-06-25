@@ -309,9 +309,12 @@ let weights = [];          // burgers (alourdissent et ralentissent selon la tai
 const BOULET_R = 12;
 let shields = [];          // items bouclier (bulle de protection)
 let shieldHits = 0;        // utilisations restantes (se fissure après 1, disparaît après 2)
+let shieldUntil = 0;       // timestamp ms : expiration du bouclier (4 s max)
 const SHIELD_R = 12;
 const SHIELD_USES = 2;     // nombre d'utilisations du bouclier
+const SHIELD_MS = 4000;    // durée max du bouclier (même s'il reste des utilisations)
 const SHIELD_BOUNCE = -7;  // rebond quand on touche le sol sous protection
+function shieldActive() { return shieldHits > 0 && Date.now() < shieldUntil; }
 // Effet burger lié à la TAILLE de l'écureuil : plus il est gros, plus c'est lent et lourd.
 // En maigrissant (à chaque saut), la vitesse réaccélère et la gravité revient à la normale.
 const SLOW_FLOOR = 0.45;   // vitesse minimale (quand l'écureuil est au plus gros)
@@ -368,6 +371,7 @@ function reset() {
   weights = [];
   shields = [];
   shieldHits = 0;
+  shieldUntil = 0;
   freeBirds = [];
   followers = [];
   trail = [];
@@ -693,7 +697,7 @@ function update() {
 
   // rayon effectif (l'écureuil agrandi par le burger est plus gros donc plus exposé)
   const er = bird.r * birdScale;
-  const shielded = shieldHits > 0;             // bulle de protection active ?
+  const shielded = shieldActive();             // bulle de protection active ? (utilisations + délai)
   const grace = Date.now() < invincibleUntil;  // courte invincibilité (anti-rebond)
 
   // Sol : mortel normalement, mais sous bouclier on rebondit (consomme une utilisation)
@@ -764,7 +768,8 @@ function update() {
     sh.y = sh.baseY + Math.sin((frame + sh.phase * 10) * 0.07) * 6;
     if (Math.hypot(sh.x - bird.x, sh.y - bird.y) < bird.r * birdScale + SHIELD_R + 8) {
       sh.taken = true;
-      shieldHits = SHIELD_USES;   // bouclier à 2 utilisations
+      shieldHits = SHIELD_USES;          // bouclier à 2 utilisations…
+      shieldUntil = Date.now() + SHIELD_MS; // …et 4 s max
     }
   }
   shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
@@ -1584,6 +1589,8 @@ function drawShield(x, y) {
 
 // bulle de protection autour de l'écureuil ; `hits` = utilisations restantes (1 = fissurée)
 function drawShieldBubble(x, y, radius, hits) {
+  // clignote sur la dernière seconde avant expiration du timer
+  if (shieldUntil - Date.now() < 1000 && Math.floor(frame / 4) % 2 === 0) return;
   ctx.save();
   const cracked = hits <= 1;
   const grad = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
@@ -1837,7 +1844,7 @@ function draw() {
   if (!(invincible && Math.floor(frame / 5) % 2 === 0)) drawBird();
 
   // bulle de protection autour de l'écureuil (bouclier actif) — fissurée après 1 utilisation
-  if (shieldHits > 0) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
+  if (shieldActive()) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
 
   // score
   if (state === 'play' || state === 'dead') {
