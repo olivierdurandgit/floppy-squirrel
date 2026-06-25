@@ -945,11 +945,35 @@ function drawPipe(p) {
   }
 }
 
-// dessine le décor d'arrière-plan d'une scène donnée (sur le sol déjà tracé)
+// dessine le décor d'arrière-plan d'une scène donnée
 function drawSceneDecor(s) {
   if (s === 'forest') drawCutForest();
   else if (s === 'lake') drawDriedLake();
   else drawFactories();   // 'factory' ou null
+}
+
+// panneau complet d'une scène (atmosphère + sol + décor), découpé à [xStart, xEnd] pour une limite nette.
+// slideX décale le décor pendant le glissement.
+function drawScenePanel(s, xStart, xEnd, slideX) {
+  if (xEnd <= xStart) return;
+  const sand = (s === 'lake') ? 1 : 0;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(xStart, 0, xEnd - xStart, H);
+  ctx.clip();
+  // atmosphère sableuse (ciel jaune) uniquement pour le désert
+  if (sand) {
+    ctx.fillStyle = 'rgba(232, 205, 110, 0.32)';
+    ctx.fillRect(0, 0, W, GROUND_Y);
+  }
+  // sol (béton ou sable jaune)
+  drawGround(sand);
+  // décor, décalé par le glissement
+  ctx.save();
+  ctx.translate(slideX, 0);
+  drawSceneDecor(s);
+  ctx.restore();
+  ctx.restore();
 }
 
 // Mélange deux couleurs RGB ([r,g,b]) selon t (0 = c1, 1 = c2)
@@ -1820,23 +1844,13 @@ function draw() {
     ctx.translate(-bird.x, -bird.y);
   }
   drawBackground();
-  // atmosphère sableuse (arrière-plan jaune) quand le désert est actif — fondu pendant la transition
-  let desertTint = 0;
+  // décor en panneaux autonomes (ciel + sol + décor) avec une limite NETTE pendant le glissement
   if (transitioning) {
-    if (toScene === 'lake') desertTint = transOffset / W;
-    else if (fromScene === 'lake') desertTint = 1 - transOffset / W;
-  } else if (scene === 'lake') desertTint = 1;
-  if (desertTint > 0) {
-    ctx.fillStyle = `rgba(232, 205, 110, ${0.32 * desertTint})`;
-    ctx.fillRect(0, 0, W, GROUND_Y);
-  }
-  drawGround(desertTint);   // sol jaune sable quand le désert est actif
-  // décor d'arrière-plan : glisse à la vitesse du décor lors d'un changement
-  if (transitioning) {
-    ctx.save(); ctx.translate(-transOffset, 0); drawSceneDecor(fromScene); ctx.restore();      // sort à gauche
-    ctx.save(); ctx.translate(W - transOffset, 0); drawSceneDecor(toScene); ctx.restore();     // entre par la droite
+    const seam = W - transOffset;               // frontière verticale entre les deux décors
+    drawScenePanel(fromScene, 0, seam, -transOffset);   // ancien décor, sort à gauche
+    drawScenePanel(toScene, seam, W, W - transOffset);  // nouveau décor, entre par la droite
   } else {
-    drawSceneDecor(scene);
+    drawScenePanel(scene, 0, W, 0);
   }
   // obstacles au premier plan
   for (const p of pipes) drawPipe(p);
