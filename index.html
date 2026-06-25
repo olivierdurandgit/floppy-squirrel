@@ -273,8 +273,8 @@
     cursor: pointer;
   }
   #modeRow button:hover { background: #27ae60; }
-  #customizeBtn, #deadHomeBtn {
-    margin-top: 14px;
+  #customizeBtn, #deadHomeBtn, #codesBtn {
+    margin-top: 10px;
     border: none;
     border-radius: 22px;
     background: rgba(255,255,255,.9);
@@ -284,7 +284,7 @@
     padding: 9px 20px;
     cursor: pointer;
   }
-  #customizeBtn:hover, #deadHomeBtn:hover { background: #fff; }
+  #customizeBtn:hover, #deadHomeBtn:hover, #codesBtn:hover { background: #fff; }
 </style>
 </head>
 <body>
@@ -433,7 +433,7 @@ let bats = [];             // battes à ramasser (mode dodge)
 let batUses = 0;           // coups de batte restants (tue un renard)
 let swingUntil = 0;        // timestamp ms : animation de frappe
 let hitFx = [];            // impacts « POW » des renards assommés
-let batUnbreakable = false; // code 7777 : batte incassable (coups illimités)
+let batUnbreakable = false; // code 7458 : batte incassable (coups illimités)
 const BAT_R = 12;
 const BAT_USES = 3;
 let mushrooms = [];        // champignons hallucinogènes
@@ -783,11 +783,16 @@ function showReady() {
       <button id="modeClassic">🪵 Colonnes<br><small>🏆 ${bestClassic}</small></button>
       <button id="modeObjects">☄️ Objets<br><small>🏆 ${bestDodge}</small></button>
     </div>
-    <button id="customizeBtn">👕 Personnaliser</button>`;
+    <button id="customizeBtn">👕 Personnaliser</button>
+    <button id="codesBtn">🔢 Codes</button>`;
   const cb = document.getElementById('customizeBtn');
   const openCust = (e) => { e.preventDefault(); e.stopPropagation(); openCustomize(); };
   cb.addEventListener('mousedown', openCust);
   cb.addEventListener('touchstart', openCust, { passive: false });
+  const codesB = document.getElementById('codesBtn');
+  const openCodes = (e) => { e.preventDefault(); e.stopPropagation(); openCodePanel(); };
+  codesB.addEventListener('mousedown', openCodes);
+  codesB.addEventListener('touchstart', openCodes, { passive: false });
 
   const startWith = (mode) => (e) => { e.preventDefault(); e.stopPropagation(); gameMode = mode; startCountdown(); };
   ['modeClassic', 'modeObjects'].forEach(id => {
@@ -2473,7 +2478,7 @@ function enterCode(d) {
         if (state === 'play') score = n;   // applique aussi en cours de partie
       }
     }
-  } else if (codeBuffer === '7777') {
+  } else if (codeBuffer === '7458') {
     batUnbreakable = !batUnbreakable;       // batte incassable (coups illimités)
     batUses = batUnbreakable ? 999 : 0;
     cheatUsed = true;
