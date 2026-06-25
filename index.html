@@ -305,12 +305,13 @@ let mushrooms = [];        // champignons hallucinogènes
 let tripUntil = 0;         // timestamp ms : fin de l'effet psychédélique
 const MUSH_R = 11;
 const TRIP_MS = 6000;      // durée de l'effet « couleurs partout »
-let weights = [];          // boulets (ralentissent le jeu)
-let slowUntil = 0;         // timestamp ms : fin du ralentissement
+let weights = [];          // burgers (alourdissent et ralentissent selon la taille)
 const BOULET_R = 12;
-const SLOW_MS = 6000;      // durée du ralentissement
-const SLOW_FACTOR = 0.45;  // facteur de vitesse pendant le ralentissement
-const HEAVY_GRAVITY = 1.8; // multiplicateur de gravité quand le burger est actif (saut inchangé)
+// Effet burger lié à la TAILLE de l'écureuil : plus il est gros, plus c'est lent et lourd.
+// En maigrissant (à chaque saut), la vitesse réaccélère et la gravité revient à la normale.
+const SLOW_FLOOR = 0.45;   // vitesse minimale (quand l'écureuil est au plus gros)
+const SLOW_PER_SCALE = 0.45; // ralentissement par unité de surtaille
+const GRAV_PER_SCALE = 1.0;  // gravité ajoutée par unité de surtaille (saut inchangé)
 let freeBirds = [];        // petits oiseaux à attraper (flottent entre les tuyaux)
 let followers = [];        // petits oiseaux attrapés qui suivent le gros oiseau
 let trail = [];            // historique des positions du gros oiseau (pour le suivi)
@@ -357,7 +358,6 @@ function reset() {
   mushrooms = [];
   tripUntil = 0;
   weights = [];
-  slowUntil = 0;
   freeBirds = [];
   followers = [];
   trail = [];
@@ -583,7 +583,7 @@ function showDead(cause) {
   // messages dédiés si on meurt sous l'effet d'un item
   const msg = (Date.now() < tripUntil)
     ? 'Il vaut mieux éviter de manger certaines choses…'
-    : (Date.now() < slowUntil)
+    : (birdScale > 1)
       ? (cause === 'ground' ? 'Floppy a coulé comme une pierre' : 'Le burger a un peu trop alourdi Floppy')
       : (cause === 'ground' ? 'Floppy a mangé le sol' : obstacleMsg);
   overlay.classList.remove('hidden');
@@ -634,8 +634,10 @@ function update() {
   if (state !== 'play') return;
   frame++;
 
-  // boulet actif : gravité renforcée (l'écureuil est plus lourd), force de saut inchangée
-  const grav = (Date.now() < slowUntil) ? GRAVITY * HEAVY_GRAVITY : GRAVITY;
+  // surtaille due au burger (0 = taille normale) : plus l'écureuil est gros, plus il est lourd
+  const oversize = Math.max(0, birdScale - 1);
+  // gravité renforcée proportionnelle à la taille (force de saut inchangée)
+  const grav = GRAVITY * (1 + oversize * GRAV_PER_SCALE);
   bird.vy += grav;
   bird.y += bird.vy;
   bird.rot = Math.max(-0.5, Math.min(1.2, bird.vy / 12));
@@ -646,8 +648,8 @@ function update() {
   } else {
     speed = BASE_SPEED;
   }
-  // boulet ramassé : ralentissement temporaire du jeu
-  if (Date.now() < slowUntil) speed *= SLOW_FACTOR;
+  // ralentissement proportionnel à la taille : réaccélère au fur et à mesure que l'écureuil maigrit
+  speed *= Math.max(SLOW_FLOOR, 1 - oversize * SLOW_PER_SCALE);
   // défilement du décor d'arrière-plan (parallaxe, plus lent que les obstacles)
   bgScroll += speed * BG_PARALLAX;
   // Au-delà de 100 points : chaque obstacle franchi rapporte 2 points au lieu de 1
@@ -723,8 +725,8 @@ function update() {
     wgt.y = wgt.baseY + Math.sin((frame + wgt.phase * 10) * 0.06) * 5;
     if (Math.hypot(wgt.x - bird.x, wgt.y - bird.y) < bird.r * birdScale + BOULET_R + 8) {
       wgt.taken = true;
-      slowUntil = Date.now() + SLOW_MS;   // ralentit le jeu pendant SLOW_MS
-      birdScale = Math.min(MAX_SCALE, birdScale + BURGER_GROW); // l'écureuil grossit
+      // l'écureuil grossit : ralentit + alourdit, puis revient à la normale en maigrissant (sauts)
+      birdScale = Math.min(MAX_SCALE, birdScale + BURGER_GROW);
     }
   }
   weights = weights.filter(wgt => !wgt.taken && wgt.x + BOULET_R > -10);
