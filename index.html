@@ -433,6 +433,7 @@ let bats = [];             // battes à ramasser (mode dodge)
 let batUses = 0;           // coups de batte restants (tue un renard)
 let swingUntil = 0;        // timestamp ms : animation de frappe
 let hitFx = [];            // impacts « POW » des renards assommés
+let batUnbreakable = false; // code 7777 : batte incassable (coups illimités)
 const BAT_R = 12;
 const BAT_USES = 3;
 let mushrooms = [];        // champignons hallucinogènes
@@ -507,7 +508,7 @@ function reset() {
   objects = [];
   objectCount = 0;
   bats = [];
-  batUses = 0;
+  batUses = batUnbreakable ? 999 : 0;
   swingUntil = 0;
   hitFx = [];
   mushrooms = [];
@@ -868,14 +869,14 @@ function swingBat() {
       hitAny = true;
     }
   }
-  if (hitAny) batUses--;   // un coup n'est consommé que s'il touche
+  if (hitAny && !batUnbreakable) batUses--;   // un coup n'est consommé que s'il touche
 }
 
 function die(cause) {
   state = 'dead';
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
   // score non enregistré si une triche a été utilisée (code tapé, invincibilité, vitesse boostée)
-  const cheated = cheatUsed || godMode || cheatSpeed > 1 || startScore > 0;
+  const cheated = cheatUsed || godMode || cheatSpeed > 1 || startScore > 0 || batUnbreakable;
   if (!cheated && score > getBest()) {
     if (gameMode === 'dodge') { bestDodge = score; localStorage.setItem('floppyBestDodge', score); }
     else { bestClassic = score; localStorage.setItem('floppyBestClassic', score); }
@@ -2345,7 +2346,7 @@ function draw() {
     if (gameMode === 'dodge' && batUses > 0) {
       ctx.fillStyle = '#b5793b';
       ctx.font = 'bold 18px Segoe UI, Arial';
-      ctx.fillText('🏏 ×' + batUses, 12, cheatSpeed > 1 ? 80 : 56);
+      ctx.fillText('🏏 ×' + (batUnbreakable ? '∞' : batUses), 12, cheatSpeed > 1 ? 80 : 56);
     }
   }
 
@@ -2408,7 +2409,7 @@ function loop(now) {
   homeBtn.style.display = paused ? 'block' : 'none';
   godBtn.style.display = cheatUnlocked ? 'block' : 'none';   // visible une fois le code saisi
   batBtn.style.display = (gameMode === 'dodge' && state === 'play' && batUses > 0) ? 'block' : 'none';
-  if (batUses > 0) batBtn.textContent = '🏏 Frapper (' + batUses + ')';
+  if (batUses > 0) batBtn.textContent = '🏏 Frapper (' + (batUnbreakable ? '∞' : batUses) + ')';
 
   if (paused) {
     // jeu figé : on dessine la scène + l'écran de pause, sans faire avancer la logique
@@ -2472,6 +2473,10 @@ function enterCode(d) {
         if (state === 'play') score = n;   // applique aussi en cours de partie
       }
     }
+  } else if (codeBuffer === '7777') {
+    batUnbreakable = !batUnbreakable;       // batte incassable (coups illimités)
+    batUses = batUnbreakable ? 999 : 0;
+    cheatUsed = true;
   }
 }
 
