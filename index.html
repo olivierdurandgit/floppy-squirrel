@@ -94,16 +94,19 @@
   #godBtn.on { background: #b8860b; color: #fff; }
   #batBtn {
     position: absolute;
-    bottom: 10px;
-    right: 10px;
+    bottom: 80px;
+    right: 12px;
     z-index: 7;
+    width: 64px;
+    height: 64px;
     border: none;
-    border-radius: 16px;
+    border-radius: 12px;
     background: #b5793b;
     color: #fff;
     font-size: 15px;
     font-weight: bold;
-    padding: 10px 16px;
+    line-height: 1.1;
+    padding: 0;
     cursor: pointer;
     display: none;
   }
@@ -2411,7 +2414,7 @@ function loop(now) {
   homeBtn.style.display = paused ? 'block' : 'none';
   godBtn.style.display = cheatUnlocked ? 'block' : 'none';   // visible une fois le code saisi
   batBtn.style.display = (gameMode === 'dodge' && state === 'play' && batUses > 0) ? 'block' : 'none';
-  if (batUses > 0) batBtn.textContent = '🏏 Frapper (' + (batUnbreakable ? '∞' : batUses) + ')';
+  if (batUses > 0) batBtn.innerHTML = '🏏<br>×' + (batUnbreakable ? '∞' : batUses);
 
   if (paused) {
     // jeu figé : on dessine la scène + l'écran de pause, sans faire avancer la logique
