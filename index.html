@@ -92,6 +92,22 @@
     display: none;
   }
   #godBtn.on { background: #b8860b; color: #fff; }
+  #batBtn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    z-index: 7;
+    border: none;
+    border-radius: 16px;
+    background: #b5793b;
+    color: #fff;
+    font-size: 15px;
+    font-weight: bold;
+    padding: 10px 16px;
+    cursor: pointer;
+    display: none;
+  }
+  #batBtn:active { background: #8a5a2a; }
   #codePanel {
     position: absolute;
     left: 10px;
@@ -276,6 +292,7 @@
   <canvas id="game" width="400" height="600"></canvas>
   <button id="pauseBtn" aria-label="Pause">⏸</button>
   <button id="godBtn">🛡️ Invincible : OFF</button>
+  <button id="batBtn">🏏 Frapper</button>
   <button id="homeBtn">🏠 Accueil</button>
   <div id="codePanel" class="hidden">
     <div id="codeDisplay">····</div>
@@ -309,6 +326,7 @@ const overlay = document.getElementById('overlay');
 const pauseBtn = document.getElementById('pauseBtn');
 const homeBtn = document.getElementById('homeBtn');
 const godBtn = document.getElementById('godBtn');
+const batBtn = document.getElementById('batBtn');
 const codePanel = document.getElementById('codePanel');
 const codeDisplay = document.getElementById('codeDisplay');
 const codeKeys = document.getElementById('codeKeys');
@@ -413,6 +431,7 @@ let objectCount = 0;
 const OBJ_INTERVAL = 70;   // cadence d'apparition des renards (frames)
 let bats = [];             // battes à ramasser (mode dodge)
 let batUses = 0;           // coups de batte restants (tue un renard)
+let swingUntil = 0;        // timestamp ms : animation de frappe
 const BAT_R = 12;
 const BAT_USES = 3;
 let mushrooms = [];        // champignons hallucinogènes
@@ -488,6 +507,7 @@ function reset() {
   objectCount = 0;
   bats = [];
   batUses = 0;
+  swingUntil = 0;
   mushrooms = [];
   tripUntil = 0;
   weights = [];
@@ -709,7 +729,7 @@ function spawnObject() {
   }
   // écureuil / item dans un créneau libre restant (jamais sur un renard)
   const cy = slotY(idx[foxN]);
-  if (objectCount % 10 === 0) {
+  if (objectCount % 4 === 0) {
     const col = SMALL_PALETTE[smallColorIdx % SMALL_PALETTE.length];
     smallColorIdx++;
     freeBirds.push({ x: W + 24, y: cy, baseY: cy, phase: Math.random() * Math.PI * 2, body: col.body, stroke: col.stroke });
@@ -830,6 +850,24 @@ function consumeShield() {
   invincibleUntil = Date.now() + HIT_INVINCIBLE;
 }
 
+// Coup de batte manuel : assomme les renards à portée devant l'écureuil (consomme 1 coup si touché)
+const STRIKE_REACH = 70;
+function swingBat() {
+  if (gameMode !== 'dodge' || batUses <= 0 || state !== 'play' || paused) return;
+  swingUntil = Date.now() + 250;   // animation de frappe
+  const er = bird.r * birdScale;
+  let hitAny = false;
+  for (let i = objects.length - 1; i >= 0; i--) {
+    const o = objects[i];
+    if (Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r + STRIKE_REACH) {
+      objects.splice(i, 1);
+      score += 2;
+      hitAny = true;
+    }
+  }
+  if (hitAny) batUses--;   // un coup n'est consommé que s'il touche
+}
+
 function die(cause) {
   state = 'dead';
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
@@ -943,12 +981,10 @@ function update() {
       else takeHit();
     }
   } else {
-    // Renards : avec une batte on les tue (−1 coup) ; sinon perte de vie
-    for (let i = objects.length - 1; i >= 0; i--) {
-      const o = objects[i];
+    // Renards : contact = perte de vie (la batte se déclenche manuellement, voir swingBat)
+    for (const o of objects) {
       if (Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r) {
         if (godMode || grace) { /* invincible : on ignore */ }
-        else if (batUses > 0) { objects.splice(i, 1); batUses--; score += 2; } // renard assommé
         else if (shielded) { consumeShield(); }
         else takeHit();
         break;
@@ -2223,12 +2259,13 @@ function draw() {
   // bulle de protection autour de l'écureuil (bouclier actif) — fissurée après 1 utilisation
   if (shieldActive()) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
 
-  // batte tenue par l'écureuil (mode dodge) — agrandie
+  // batte tenue par l'écureuil (mode dodge) — taille normale, frappe animée
   if (gameMode === 'dodge' && batUses > 0) {
+    const swinging = Date.now() < swingUntil;
+    const swingRot = swinging ? (1 - (swingUntil - Date.now()) / 250) * 2.2 : 0; // 0 → ~2.2 rad
     ctx.save();
     ctx.translate(bird.x + bird.r * birdScale * 0.7, bird.y - bird.r * birdScale * 0.4);
-    ctx.rotate(-0.5 + Math.sin(frame * 0.3) * 0.15);   // léger balancement
-    ctx.scale(2.0, 2.0);
+    ctx.rotate(-0.5 + Math.sin(frame * 0.3) * 0.12 + swingRot);
     drawBatItem(0, 0);
     ctx.restore();
   }
@@ -2335,6 +2372,8 @@ function loop(now) {
   pauseBtn.style.display = (state === 'play') ? 'block' : 'none';
   homeBtn.style.display = paused ? 'block' : 'none';
   godBtn.style.display = cheatUnlocked ? 'block' : 'none';   // visible une fois le code saisi
+  batBtn.style.display = (gameMode === 'dodge' && state === 'play' && batUses > 0) ? 'block' : 'none';
+  if (batUses > 0) batBtn.textContent = '🏏 Frapper (' + batUses + ')';
 
   if (paused) {
     // jeu figé : on dessine la scène + l'écran de pause, sans faire avancer la logique
@@ -2404,6 +2443,7 @@ function enterCode(d) {
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
   else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
+  else if (e.code === 'KeyB' || e.code === 'ArrowDown') { e.preventDefault(); swingBat(); }
   if (e.key >= '0' && e.key <= '9') enterCode(e.key);
 });
 
@@ -2425,6 +2465,11 @@ function godHandler(e) {
 }
 godBtn.addEventListener('mousedown', godHandler);
 godBtn.addEventListener('touchstart', godHandler, { passive: false });
+
+// bouton batte (frappe manuelle)
+function batHandler(e) { e.preventDefault(); e.stopPropagation(); swingBat(); }
+batBtn.addEventListener('mousedown', batHandler);
+batBtn.addEventListener('touchstart', batHandler, { passive: false });
 
 // --- Pavé de codes (mobile) : appui long de 5 s sur l'écran pour l'ouvrir ---
 function buildCodeKeys() {
