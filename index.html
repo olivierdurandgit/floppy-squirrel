@@ -290,8 +290,11 @@ const SPEED_FROM = 15;         // score à partir duquel la vitesse augmente
 const DOUBLE_FROM = 100;       // score à partir duquel les points doublent
 const MAX_SPEED = 6.0;         // vitesse maximale
 const ACCEL = 0.03;            // gain de vitesse par point au-delà du seuil
-const INVERT_AT = 75;          // score à partir duquel le sens de déplacement s'inverse
-const ACCEL2 = 0.012;          // accélération réduite au-delà de INVERT_AT
+const INVERT_AT = 75;          // score à partir duquel le portail apparaît (puis sens inversé)
+const ACCEL2 = 0.02;           // accélération réduite au-delà de INVERT_AT
+let inverted = false;          // sens inversé (après avoir franchi le portail) ?
+let portal = null;             // portail d'inversion ({ x }) ou null
+let portalSpawned = false;     // le portail a-t-il déjà été créé ?
 let speed = BASE_SPEED;        // vitesse courante (dynamique)
 let bgScroll = 0;              // défilement du décor d'arrière-plan (parallaxe)
 const BG_PARALLAX = 0.4;      // le décor défile plus lentement que les obstacles
@@ -391,6 +394,9 @@ function reset() {
   fromScene = toScene = null;
   transitioning = false;
   transOffset = 0;
+  inverted = false;
+  portal = null;
+  portalSpawned = false;
   paused = false;
   bgScroll = 0;
 }
@@ -787,6 +793,16 @@ function update() {
   }
   shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
 
+  // Portail d'inversion : apparaît une fois à 75 points, et inverse le sens quand on le franchit
+  if (!portalSpawned && !inverted && score >= INVERT_AT) {
+    portal = { x: W + 40 };
+    portalSpawned = true;
+  }
+  if (portal) {
+    portal.x -= speed;
+    if (portal.x <= bird.x) { inverted = true; portal = null; }   // franchi → sens inversé
+  }
+
   // Vie bonus tous les 50 points
   while (score >= nextLifeAt) {
     lives++;
@@ -947,6 +963,41 @@ function drawPipe(p) {
     drawSmokeRegion(cx, -10, p.top, p.seed);
     drawSmokeRegion(cx, p.top + PIPE_GAP, GROUND_Y, p.seed + 5);
   }
+}
+
+// portail d'inversion : anneau lumineux avec tourbillon animé
+function drawPortal(x) {
+  const cy = GROUND_Y / 2;
+  const ry = GROUND_Y * 0.46;
+  const rx = 26;
+  ctx.save();
+  // halo
+  ctx.fillStyle = 'rgba(150,80,230,0.22)';
+  ctx.beginPath(); ctx.ellipse(x, cy, rx + 14, ry + 14, 0, 0, Math.PI * 2); ctx.fill();
+  // anneau
+  ctx.lineWidth = 9;
+  ctx.strokeStyle = '#7a1fd6';
+  ctx.beginPath(); ctx.ellipse(x, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#c08bff';
+  ctx.beginPath(); ctx.ellipse(x, cy, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+  // intérieur sombre
+  ctx.fillStyle = 'rgba(35,10,65,0.6)';
+  ctx.beginPath(); ctx.ellipse(x, cy, rx - 4, ry - 4, 0, 0, Math.PI * 2); ctx.fill();
+  // spirales animées
+  ctx.strokeStyle = 'rgba(190,140,255,0.75)';
+  ctx.lineWidth = 2;
+  for (let k = 0; k < 3; k++) {
+    ctx.beginPath();
+    for (let t = 0; t <= 1; t += 0.05) {
+      const ang = t * Math.PI * 4 + frame * 0.12 + k * 2.1;
+      const px = x + Math.cos(ang) * (rx - 6) * t;
+      const py = cy + Math.sin(ang) * (ry - 6) * t;
+      if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // dessine le décor d'arrière-plan d'une scène donnée
@@ -1840,7 +1891,6 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   // pendant l'effet hallucinogène : zoom pulsé centré sur l'écureuil
   const tripping = Date.now() < tripUntil;
-  const inverted = score >= INVERT_AT;       // sens inversé au-delà de 75 points
   ctx.save();                                 // calque MIROIR (monde uniquement)
   if (inverted) { ctx.translate(W, 0); ctx.scale(-1, 1); }
   ctx.save();                                 // calque ZOOM (effet hallucinogène)
@@ -1876,6 +1926,9 @@ function draw() {
   for (const wgt of weights) drawBurger(wgt.x, wgt.y);
   // boucliers
   for (const sh of shields) drawShield(sh.x, sh.y);
+
+  // portail d'inversion (devant les obstacles, derrière l'écureuil)
+  if (portal) drawPortal(portal.x);
 
   // le gros oiseau clignote pendant l'invincibilité
   const invincible = Date.now() < invincibleUntil;
