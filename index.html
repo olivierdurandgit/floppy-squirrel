@@ -676,8 +676,8 @@ function update() {
   }
   // ralentissement proportionnel à la taille : réaccélère au fur et à mesure que l'écureuil maigrit
   speed *= Math.max(SLOW_FLOOR, 1 - oversize * SLOW_PER_SCALE);
-  // défilement du décor d'arrière-plan (parallaxe, plus lent que les obstacles)
-  bgScroll += speed * BG_PARALLAX;
+  // défilement du décor d'arrière-plan (parallaxe) — figé pendant le glissement de transition
+  if (Date.now() - transStart >= TRANSITION_MS) bgScroll += speed * BG_PARALLAX;
   // Au-delà de 100 points : chaque obstacle franchi rapporte 2 points au lieu de 1
   const pointsPerPipe = score >= DOUBLE_FROM ? 2 : 1;
 
@@ -837,10 +837,10 @@ function drawSandColumn(cx, y0, y1, seed) {
     const bump = Math.sin(k * 1.1 + seed) * 11 + Math.sin(k * 0.5 + seed * 1.7) * 6;
     const cxk = cx + bump;
     const lobes = [
-      { dx: 0,   r: 24, c: '#d8b568' },
-      { dx: -14, r: 16, c: '#c79a52' },
-      { dx: 14,  r: 17, c: '#e3c479' },
-      { dx: 3,   r: 13, c: '#b98a45' }
+      { dx: 0,   r: 24, c: '#ecc94b' },
+      { dx: -14, r: 16, c: '#d9b033' },
+      { dx: 14,  r: 17, c: '#f6dd6b' },
+      { dx: 3,   r: 13, c: '#caa12a' }
     ];
     for (const l of lobes) {
       ctx.fillStyle = l.c;
