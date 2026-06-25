@@ -318,6 +318,8 @@ const ACCEL2 = 0.02;           // accélération réduite au-delà de INVERT_AT
 let inverted = false;          // sens inversé (après avoir franchi le portail) ?
 let portal = null;             // portail d'inversion ({ x }) ou null
 let portalSpawned = false;     // le portail a-t-il déjà été créé ?
+let portalFlashUntil = 0;      // timestamp ms : flash au passage du portail
+const PORTAL_FLASH_MS = 500;
 let speed = BASE_SPEED;        // vitesse courante (dynamique)
 let bgScroll = 0;              // défilement du décor d'arrière-plan (parallaxe)
 const BG_PARALLAX = 0.4;      // le décor défile plus lentement que les obstacles
@@ -420,6 +422,7 @@ function reset() {
   inverted = false;
   portal = null;
   portalSpawned = false;
+  portalFlashUntil = 0;
   paused = false;
   bgScroll = 0;
 }
@@ -824,7 +827,11 @@ function update() {
   }
   if (portal) {
     portal.x -= speed;
-    if (portal.x <= bird.x) { inverted = true; portal = null; }   // franchi → sens inversé
+    if (portal.x <= bird.x) {                 // franchi → sens inversé + flash
+      inverted = true;
+      portal = null;
+      portalFlashUntil = Date.now() + PORTAL_FLASH_MS;
+    }
   }
 
   // Vie bonus tous les 50 points
@@ -2001,6 +2008,21 @@ function draw() {
 
   // ---- EFFET HALLUCINOGÈNE : couleurs partout (par-dessus, sans zoom) ----
   if (tripping) drawTrip();
+
+  // ---- FLASH au passage du portail (plein écran, fond violet + anneau qui s'étend) ----
+  const pf = portalFlashUntil - Date.now();
+  if (pf > 0) {
+    const a = pf / PORTAL_FLASH_MS;             // 1 → 0
+    ctx.save();
+    ctx.fillStyle = `rgba(170, 110, 255, ${0.8 * a})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${a})`;
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.arc(W / 2, H / 2, (1 - a) * W * 0.9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 // superpose un effet psychédélique de couleurs sur toute la scène
@@ -2106,6 +2128,8 @@ function godHandler(e) {
   godMode = !godMode;
   godBtn.textContent = godMode ? '🛡️ Invincible : ON' : '🛡️ Invincible : OFF';
   godBtn.classList.toggle('on', godMode);
+  // en désactivant, le bouton disparaît (il faut retaper 1203 pour le réafficher)
+  if (!godMode) cheatUnlocked = false;
 }
 godBtn.addEventListener('mousedown', godHandler);
 godBtn.addEventListener('touchstart', godHandler, { passive: false });
