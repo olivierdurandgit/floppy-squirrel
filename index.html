@@ -252,6 +252,7 @@ let godMode = false;
 let codeBuffer = '';
 let cheatSpeed = 1;   // code 4589 : multiplie la vitesse du jeu (1 ou 4)
 let cheatUsed = false; // un code a-t-il été tapé pendant cette partie ? (score non enregistré)
+let startScore = 0;   // code 6365 : score de départ choisi
 
 // --- Personnalisation : t-shirt de l'écureuil ---
 const SHIRTS = [
@@ -409,7 +410,7 @@ function reset() {
   trail = [];
   pipeCount = 0;
   smallColorIdx = 0;
-  score = 0;
+  score = startScore;   // 0 normalement, ou le score choisi via le code 6365
   frame = 0;
   lives = MAX_LIVES;
   invincibleUntil = 0;
@@ -696,7 +697,7 @@ function die(cause) {
   state = 'dead';
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
   // score non enregistré si une triche a été utilisée (code tapé, invincibilité, vitesse boostée)
-  const cheated = cheatUsed || godMode || cheatSpeed > 1;
+  const cheated = cheatUsed || godMode || cheatSpeed > 1 || startScore > 0;
   if (!cheated && score > best) { best = score; localStorage.setItem('flappyBest', best); }
   showDead(cause);
 }
@@ -2125,6 +2126,16 @@ window.addEventListener('keydown', e => {
     } else if (codeBuffer === '4589') {
       cheatSpeed = (cheatSpeed === 1) ? 4 : 1;
       cheatUsed = true;
+    } else if (codeBuffer === '6365') {
+      const v = prompt('Score de départ ?', String(startScore));
+      if (v !== null) {
+        const n = parseInt(v, 10);
+        if (!isNaN(n) && n >= 0) {
+          startScore = n;
+          cheatUsed = true;
+          if (state === 'play') score = n;   // applique aussi en cours de partie
+        }
+      }
     }
   }
 });
