@@ -1773,15 +1773,6 @@ function drawDeadFish(x, y, size, rot, c) {
 
 function drawDriedLake() {
   ensureLake();
-  const bedTop = GROUND_Y - 4;
-  // lit du lac : vase craquelée beige (large pour couvrir pendant le glissement)
-  ctx.fillStyle = '#bca972';
-  ctx.fillRect(-W, bedTop, 3 * W, H - bedTop);
-  // ancienne rive (creux plus sombre vers le centre)
-  ctx.fillStyle = 'rgba(120,100,60,0.35)';
-  ctx.beginPath();
-  ctx.ellipse(W / 2, H, W * 0.55, (H - bedTop) * 1.6, 0, Math.PI, Math.PI * 2);
-  ctx.fill();
   // fissures (défilent)
   ctx.strokeStyle = '#8a744a';
   ctx.lineWidth = 1.4;
