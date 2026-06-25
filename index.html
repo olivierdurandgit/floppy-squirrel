@@ -408,9 +408,13 @@ const MAX_SCALE = 2.4;         // taille max
 const SHRINK_PER_FLAP = 0.12;  // rétrécissement à chaque saut
 let pipes = [];
 let gameMode = 'classic';  // 'classic' (colonnes) ou 'dodge' (objets à éviter)
-let objects = [];          // objets volants à éviter (mode dodge)
+let objects = [];          // renards à éviter (mode dodge)
 let objectCount = 0;
-const OBJ_INTERVAL = 70;   // cadence d'apparition des objets (frames)
+const OBJ_INTERVAL = 70;   // cadence d'apparition des renards (frames)
+let bats = [];             // battes à ramasser (mode dodge)
+let batUses = 0;           // coups de batte restants (tue un renard)
+const BAT_R = 12;
+const BAT_USES = 3;
 let mushrooms = [];        // champignons hallucinogènes
 let tripUntil = 0;         // timestamp ms : fin de l'effet psychédélique
 const MUSH_R = 11;
@@ -482,6 +486,8 @@ function reset() {
   pipes = [];
   objects = [];
   objectCount = 0;
+  bats = [];
+  batUses = 0;
   mushrooms = [];
   tripUntil = 0;
   weights = [];
@@ -694,6 +700,10 @@ function spawnObject() {
     smallColorIdx++;
     const sy = 45 + Math.random() * (GROUND_Y - 90);
     freeBirds.push({ x: W + 24, y: sy, baseY: sy, phase: Math.random() * Math.PI * 2, body: col.body, stroke: col.stroke });
+  } else if (Math.random() < 0.12) {
+    // batte à ramasser (pour tuer les renards)
+    const by = 45 + Math.random() * (GROUND_Y - 90);
+    bats.push({ x: W + 24, baseY: by, phase: Math.random() * Math.PI * 2 });
   } else {
     spawnItemAt(W + 24, 45 + Math.random() * (GROUND_Y - 90));
   }
@@ -871,7 +881,7 @@ function update() {
     }
     pipes = pipes.filter(p => p.x + PIPE_W > -10);
   } else {
-    // MODE OBJETS : apparition + déplacement des objets à éviter
+    // MODE OBJETS : apparition + déplacement des renards
     if (frame % OBJ_INTERVAL === 0) spawnObject();
     for (const o of objects) {
       o.x -= speed;
@@ -879,6 +889,16 @@ function update() {
       if (!o.passed && o.x < bird.x) { o.passed = true; score += pointsPerPipe; }
     }
     objects = objects.filter(o => o.x + o.r > -10);
+    // battes : déplacement, ondulation, ramassage (donne 3 coups)
+    for (const bt of bats) {
+      bt.x -= speed;
+      bt.y = bt.baseY + Math.sin((frame + bt.phase * 10) * 0.07) * 6;
+      if (Math.hypot(bt.x - bird.x, bt.y - bird.y) < bird.r * birdScale + BAT_R + 8) {
+        bt.taken = true;
+        batUses = BAT_USES;
+      }
+    }
+    bats = bats.filter(bt => !bt.taken && bt.x + BAT_R > -10);
     // portail (flottant) tous les 75 points en mode objets
     if (!portal && portalsSpawned === portalsCrossed &&
         score >= INVERT_AT + portalsSpawned * PORTAL_EVERY) {
@@ -900,17 +920,29 @@ function update() {
   }
   if (bird.y - er < 0) { bird.y = er; bird.vy = 0; }
 
-  // Obstacles : contact = perte de vie, sauf grâce/bouclier/invincibilité
-  const hazards = (gameMode === 'classic')
-    ? pipes.some(p => {
-        const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
-        return inX && (bird.y - er < p.top || bird.y + er > p.top + PIPE_GAP);
-      })
-    : objects.some(o => Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r);
-  if (hazards) {
-    if (godMode || grace) { /* invincible : on ignore */ }
-    else if (shielded) { consumeShield(); }
-    else takeHit();
+  if (gameMode === 'classic') {
+    // Colonnes : contact = perte de vie, sauf grâce/bouclier/invincibilité
+    const hit = pipes.some(p => {
+      const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
+      return inX && (bird.y - er < p.top || bird.y + er > p.top + PIPE_GAP);
+    });
+    if (hit) {
+      if (godMode || grace) { /* invincible */ }
+      else if (shielded) { consumeShield(); }
+      else takeHit();
+    }
+  } else {
+    // Renards : avec une batte on les tue (−1 coup) ; sinon perte de vie
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const o = objects[i];
+      if (Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r) {
+        if (godMode || grace) { /* invincible : on ignore */ }
+        else if (batUses > 0) { objects.splice(i, 1); batUses--; score += 2; } // renard assommé
+        else if (shielded) { consumeShield(); }
+        else takeHit();
+        break;
+      }
+    }
   }
 
   // Historique des positions du gros oiseau (pour le suivi en file)
@@ -974,7 +1006,7 @@ function update() {
       portalsCrossed++;
       const st = PORTAL_CYCLE[portalsCrossed % PORTAL_CYCLE.length];
       inverted = st[0];
-      flipped = st[1];
+      flipped = (gameMode === 'dodge') ? false : st[1];   // pas d'inversion haut/bas en mode Objets
       portal = null;
       portalFlashUntil = Date.now() + PORTAL_FLASH_MS;
     }
@@ -1177,30 +1209,64 @@ function drawPortal(x) {
   ctx.restore();
 }
 
-// objet volant à éviter (mode dodge) : boule à pointes qui tourne
-function drawHazard(o) {
+// renard à éviter (mode dodge), orienté vers la gauche (sens de déplacement)
+function drawFox(o) {
+  const r = o.r;
   ctx.save();
   ctx.translate(o.x, o.y);
-  ctx.rotate(o.rot);
-  ctx.fillStyle = '#3a3d42';
-  ctx.strokeStyle = '#16181b';
+  const orange = '#e8772b', dark = '#9c4a12', cream = '#f5e6d0';
+  ctx.strokeStyle = dark;
   ctx.lineWidth = 2;
-  const n = 9;
+  // queue touffue (vers l'arrière = droite) à bout clair
+  ctx.fillStyle = orange;
   ctx.beginPath();
-  for (let i = 0; i < n * 2; i++) {
-    const a = Math.PI * i / n;
-    const rr = (i % 2 === 0) ? o.r : o.r * 0.55;
-    const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
+  ctx.moveTo(r * 0.7, -r * 0.1);
+  ctx.quadraticCurveTo(r * 2.0, -r * 0.5, r * 1.9, r * 0.5);
+  ctx.quadraticCurveTo(r * 1.4, r * 0.3, r * 0.7, r * 0.4);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = cream;
+  ctx.beginPath(); ctx.ellipse(r * 1.75, r * 0.25, r * 0.28, r * 0.22, 0.5, 0, Math.PI * 2); ctx.fill();
+  // corps
+  ctx.fillStyle = orange;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 1.0, r * 0.7, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // tête (à gauche)
+  ctx.beginPath(); ctx.arc(-r * 0.85, -r * 0.1, r * 0.6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // museau pointu
+  ctx.beginPath();
+  ctx.moveTo(-r * 1.2, -r * 0.1);
+  ctx.lineTo(-r * 1.85, r * 0.05);
+  ctx.lineTo(-r * 1.2, r * 0.3);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(-r * 1.8, r * 0.05, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  // oreilles
+  ctx.fillStyle = orange;
+  ctx.beginPath(); ctx.moveTo(-r * 1.1, -r * 0.6); ctx.lineTo(-r * 1.25, -r * 1.2); ctx.lineTo(-r * 0.7, -r * 0.7); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-r * 0.6, -r * 0.65); ctx.lineTo(-r * 0.55, -r * 1.25); ctx.lineTo(-r * 0.2, -r * 0.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // œil
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(-r * 0.9, -r * 0.2, r * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// batte à ramasser (mode dodge)
+function drawBatItem(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-0.6);
+  ctx.fillStyle = '#b5793b';
+  ctx.strokeStyle = '#7a4e22';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-BAT_R, -3);
+  ctx.quadraticCurveTo(BAT_R * 0.6, -7, BAT_R, -3);
+  ctx.quadraticCurveTo(BAT_R + 2, 0, BAT_R, 3);
+  ctx.quadraticCurveTo(BAT_R * 0.6, 7, -BAT_R, 3);
   ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  // noyau
-  ctx.fillStyle = '#6b7077';
-  ctx.beginPath(); ctx.arc(0, 0, o.r * 0.42, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.beginPath(); ctx.arc(-o.r * 0.15, -o.r * 0.15, o.r * 0.14, 0, Math.PI * 2); ctx.fill();
+  ctx.fill(); ctx.stroke();
+  // manche
+  ctx.fillStyle = '#8a5a2a';
+  ctx.fillRect(-BAT_R - 5, -2.5, 6, 5);
   ctx.restore();
 }
 
@@ -2116,7 +2182,10 @@ function draw() {
   }
   // obstacles au premier plan (colonnes en classique, objets en mode dodge)
   if (gameMode === 'classic') { for (const p of pipes) drawPipe(p); }
-  else { for (const o of objects) drawHazard(o); }
+  else {
+    for (const o of objects) drawFox(o);
+    for (const bt of bats) drawBatItem(bt.x, bt.y);
+  }
   // grisaille commune (selon les vies perdues)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
   // oiseaux qui suivent (dessinés derrière le gros oiseau) : grisonnent aussi
@@ -2142,6 +2211,15 @@ function draw() {
 
   // bulle de protection autour de l'écureuil (bouclier actif) — fissurée après 1 utilisation
   if (shieldActive()) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
+
+  // batte tenue par l'écureuil (mode dodge)
+  if (gameMode === 'dodge' && batUses > 0) {
+    ctx.save();
+    ctx.translate(bird.x + bird.r * birdScale * 0.6, bird.y - bird.r * birdScale * 0.3);
+    ctx.rotate(-0.5 + Math.sin(frame * 0.3) * 0.15);   // léger balancement
+    drawBatItem(0, 0);
+    ctx.restore();
+  }
 
   ctx.restore();   // fin du zoom
   ctx.restore();   // fin du miroir
@@ -2178,6 +2256,12 @@ function draw() {
       ctx.fillStyle = '#ffd86b';
       ctx.font = 'bold 16px Segoe UI, Arial';
       ctx.fillText('⏩ ×' + cheatSpeed, 12, 56);
+    }
+    // compteur de batte (mode dodge)
+    if (gameMode === 'dodge' && batUses > 0) {
+      ctx.fillStyle = '#b5793b';
+      ctx.font = 'bold 18px Segoe UI, Arial';
+      ctx.fillText('🏏 ×' + batUses, 12, cheatSpeed > 1 ? 80 : 56);
     }
   }
 
