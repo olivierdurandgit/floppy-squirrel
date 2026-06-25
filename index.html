@@ -360,8 +360,8 @@ let scene = null;                      // décor actif (null = usines au début)
 let nextSceneChange = SCENE_EVERY;
 let fromScene = null;                  // décor qui sort pendant la transition
 let toScene = null;                    // décor qui entre pendant la transition
-let transStart = -99999;               // timestamp ms du début de la transition
-const TRANSITION_MS = 700;             // durée du glissement entre décors
+let transitioning = false;             // un glissement de décor est en cours ?
+let transOffset = 0;                   // décalage (px) du glissement, avance à la vitesse du décor
 
 function reset() {
   bird.y = H/2; bird.vy = 0; bird.rot = 0;
@@ -387,7 +387,8 @@ function reset() {
   scene = SCENES[Math.floor(Math.random() * SCENES.length)]; // décor de départ aléatoire
   nextSceneChange = SCENE_EVERY;
   fromScene = toScene = null;
-  transStart = -99999;
+  transitioning = false;
+  transOffset = 0;
   paused = false;
   bgScroll = 0;
 }
@@ -676,8 +677,15 @@ function update() {
   }
   // ralentissement proportionnel à la taille : réaccélère au fur et à mesure que l'écureuil maigrit
   speed *= Math.max(SLOW_FLOOR, 1 - oversize * SLOW_PER_SCALE);
-  // défilement du décor d'arrière-plan (parallaxe) — figé pendant le glissement de transition
-  if (Date.now() - transStart >= TRANSITION_MS) bgScroll += speed * BG_PARALLAX;
+  // défilement du décor d'arrière-plan (parallaxe).
+  // Pendant un changement, on déplace le glissement à CETTE vitesse (le décor n'accélère pas).
+  const bgStep = speed * BG_PARALLAX;
+  if (transitioning) {
+    transOffset += bgStep;
+    if (transOffset >= W) { transitioning = false; transOffset = 0; }
+  } else {
+    bgScroll += bgStep;
+  }
   // Au-delà de 100 points : chaque obstacle franchi rapporte 2 points au lieu de 1
   const pointsPerPipe = score >= DOUBLE_FROM ? 2 : 1;
 
@@ -787,7 +795,8 @@ function update() {
     fromScene = scene;
     scene = choices[Math.floor(Math.random() * choices.length)];
     toScene = scene;
-    transStart = Date.now();           // démarre le glissement
+    transitioning = true;              // démarre le glissement (à la vitesse du décor)
+    transOffset = 0;
     nextSceneChange += SCENE_EVERY;
   }
 
@@ -837,10 +846,10 @@ function drawSandColumn(cx, y0, y1, seed) {
     const bump = Math.sin(k * 1.1 + seed) * 11 + Math.sin(k * 0.5 + seed * 1.7) * 6;
     const cxk = cx + bump;
     const lobes = [
-      { dx: 0,   r: 24, c: '#ecc94b' },
-      { dx: -14, r: 16, c: '#d9b033' },
-      { dx: 14,  r: 17, c: '#f6dd6b' },
-      { dx: 3,   r: 13, c: '#caa12a' }
+      { dx: 0,   r: 24, c: '#d8b568' },
+      { dx: -14, r: 16, c: '#c79a52' },
+      { dx: 14,  r: 17, c: '#e3c479' },
+      { dx: 3,   r: 13, c: '#b98a45' }
     ];
     for (const l of lobes) {
       ctx.fillStyle = l.c;
@@ -1811,14 +1820,21 @@ function draw() {
     ctx.translate(-bird.x, -bird.y);
   }
   drawBackground();
+  // atmosphère sableuse (arrière-plan jaune) quand le désert est actif — fondu pendant la transition
+  let desertTint = 0;
+  if (transitioning) {
+    if (toScene === 'lake') desertTint = transOffset / W;
+    else if (fromScene === 'lake') desertTint = 1 - transOffset / W;
+  } else if (scene === 'lake') desertTint = 1;
+  if (desertTint > 0) {
+    ctx.fillStyle = `rgba(232, 205, 110, ${0.32 * desertTint})`;
+    ctx.fillRect(0, 0, W, GROUND_Y);
+  }
   drawGround();
-  // décor d'arrière-plan : glisse de droite à gauche lors d'un changement
-  const tElapsed = Date.now() - transStart;
-  if (tElapsed < TRANSITION_MS) {
-    const t = tElapsed / TRANSITION_MS;
-    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOut
-    ctx.save(); ctx.translate(-e * W, 0); drawSceneDecor(fromScene); ctx.restore();      // sort à gauche
-    ctx.save(); ctx.translate((1 - e) * W, 0); drawSceneDecor(toScene); ctx.restore();   // entre par la droite
+  // décor d'arrière-plan : glisse à la vitesse du décor lors d'un changement
+  if (transitioning) {
+    ctx.save(); ctx.translate(-transOffset, 0); drawSceneDecor(fromScene); ctx.restore();      // sort à gauche
+    ctx.save(); ctx.translate(W - transOffset, 0); drawSceneDecor(toScene); ctx.restore();     // entre par la droite
   } else {
     drawSceneDecor(scene);
   }
