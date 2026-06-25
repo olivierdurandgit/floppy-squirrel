@@ -307,6 +307,11 @@ const MUSH_R = 11;
 const TRIP_MS = 6000;      // durée de l'effet « couleurs partout »
 let weights = [];          // burgers (alourdissent et ralentissent selon la taille)
 const BOULET_R = 12;
+let shields = [];          // items bouclier (bulle de protection)
+let shieldUntil = 0;       // timestamp ms : fin de la protection
+const SHIELD_R = 12;
+const SHIELD_MS = 4000;    // durée de la protection
+const SHIELD_BOUNCE = -7;  // rebond quand on touche le sol sous protection
 // Effet burger lié à la TAILLE de l'écureuil : plus il est gros, plus c'est lent et lourd.
 // En maigrissant (à chaque saut), la vitesse réaccélère et la gravité revient à la normale.
 const SLOW_FLOOR = 0.45;   // vitesse minimale (quand l'écureuil est au plus gros)
@@ -358,6 +363,8 @@ function reset() {
   mushrooms = [];
   tripUntil = 0;
   weights = [];
+  shields = [];
+  shieldUntil = 0;
   freeBirds = [];
   followers = [];
   trail = [];
@@ -517,7 +524,7 @@ function spawnPipe() {
       stroke: col.stroke
     });
   }
-  // item entre les colonnes (hors tuyaux à écureuil) : champignon OU burger, jamais les deux
+  // item entre les colonnes (hors tuyaux à écureuil) : un seul à la fois
   if (pipeCount % 10 !== 0) {
     const itemY = top + PIPE_GAP * (0.3 + Math.random() * 0.4);
     if (Math.random() < 0.06) {
@@ -526,6 +533,9 @@ function spawnPipe() {
     } else if (Math.random() < 0.035) {
       // burger (plus rare) : ralentit + alourdit
       weights.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
+    } else if (Math.random() < 0.03) {
+      // bouclier (3 %) : bulle de protection
+      shields.push({ x: W + PIPE_W / 2, baseY: itemY, phase: Math.random() * Math.PI * 2 });
     }
   }
 }
@@ -672,13 +682,17 @@ function update() {
 
   // rayon effectif (l'écureuil agrandi par le burger est plus gros donc plus exposé)
   const er = bird.r * birdScale;
+  const shielded = Date.now() < shieldUntil;   // bulle de protection active ?
 
-  // Le sol reste mortel (chute) ; le plafond bloque sans dégât
-  if (bird.y + er > GROUND_Y) { bird.y = GROUND_Y - er; lives = 0; die('ground'); }
+  // Sol : mortel normalement, mais sous bouclier on rebondit
+  if (bird.y + er > GROUND_Y) {
+    if (shielded) { bird.y = GROUND_Y - er; bird.vy = SHIELD_BOUNCE; }
+    else { bird.y = GROUND_Y - er; lives = 0; die('ground'); }
+  }
   if (bird.y - er < 0) { bird.y = er; bird.vy = 0; }
 
-  // Fumée : on peut la traverser, mais chaque contact coûte une vie (avec invincibilité)
-  const invincible = Date.now() < invincibleUntil;
+  // Fumée : on peut la traverser, mais chaque contact coûte une vie (sauf invincibilité/bouclier)
+  const invincible = Date.now() < invincibleUntil || shielded;
   for (const p of pipes) {
     const inX = bird.x + er > p.x && bird.x - er < p.x + PIPE_W;
     const inTop = bird.y - er < p.top;
@@ -730,6 +744,17 @@ function update() {
     }
   }
   weights = weights.filter(wgt => !wgt.taken && wgt.x + BOULET_R > -10);
+
+  // Boucliers : déplacement, ondulation, et activation de la protection
+  for (const sh of shields) {
+    sh.x -= speed;
+    sh.y = sh.baseY + Math.sin((frame + sh.phase * 10) * 0.07) * 6;
+    if (Math.hypot(sh.x - bird.x, sh.y - bird.y) < bird.r * birdScale + SHIELD_R + 8) {
+      sh.taken = true;
+      shieldUntil = Date.now() + SHIELD_MS;   // bulle de protection pendant SHIELD_MS
+    }
+  }
+  shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
 
   // Vie bonus tous les 50 points
   while (score >= nextLifeAt) {
@@ -1509,6 +1534,58 @@ function drawBurger(x, y) {
   }
 }
 
+// item bouclier : petite bulle brillante avec un écusson
+function drawShield(x, y) {
+  const r = SHIELD_R;
+  // bulle
+  const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.2, x, y, r);
+  grad.addColorStop(0, 'rgba(180,225,255,0.85)');
+  grad.addColorStop(1, 'rgba(80,160,230,0.45)');
+  ctx.fillStyle = grad;
+  ctx.strokeStyle = 'rgba(120,200,255,0.9)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  // écusson
+  ctx.fillStyle = '#2d7fd6';
+  ctx.strokeStyle = '#1c5fa6';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y - r * 0.55);
+  ctx.lineTo(x + r * 0.45, y - r * 0.35);
+  ctx.lineTo(x + r * 0.45, y + r * 0.1);
+  ctx.quadraticCurveTo(x, y + r * 0.6, x - r * 0.45, y + r * 0.1);
+  ctx.lineTo(x - r * 0.45, y - r * 0.35);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // reflet
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.beginPath(); ctx.ellipse(x - r * 0.35, y - r * 0.4, r * 0.2, r * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
+}
+
+// bulle de protection autour de l'écureuil (quand le bouclier est actif)
+function drawShieldBubble(x, y, radius) {
+  const remaining = shieldUntil - Date.now();
+  // clignote sur la dernière seconde
+  if (remaining < 1000 && Math.floor(frame / 4) % 2 === 0) return;
+  ctx.save();
+  const grad = ctx.createRadialGradient(x, y, radius * 0.5, x, y, radius);
+  grad.addColorStop(0, 'rgba(150,210,255,0.05)');
+  grad.addColorStop(0.8, 'rgba(120,200,255,0.18)');
+  grad.addColorStop(1, 'rgba(150,225,255,0.4)');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(180,230,255,0.8)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+  // petit reflet qui tourne
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  const a = frame * 0.06;
+  ctx.beginPath();
+  ctx.ellipse(x + Math.cos(a) * radius * 0.6, y + Math.sin(a) * radius * 0.6, 3, 2, a, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawCutForest() {
   ensureForest();
   const g = GROUND_Y;
@@ -1717,10 +1794,15 @@ function draw() {
   for (const m of mushrooms) drawMushroom(m.x, m.y);
   // burgers (ralentissement + lourdeur)
   for (const wgt of weights) drawBurger(wgt.x, wgt.y);
+  // boucliers
+  for (const sh of shields) drawShield(sh.x, sh.y);
 
   // le gros oiseau clignote pendant l'invincibilité
   const invincible = Date.now() < invincibleUntil;
   if (!(invincible && Math.floor(frame / 5) % 2 === 0)) drawBird();
+
+  // bulle de protection autour de l'écureuil (bouclier actif)
+  if (Date.now() < shieldUntil) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10);
 
   // score
   if (state === 'play' || state === 'dead') {
