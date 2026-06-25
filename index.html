@@ -952,7 +952,7 @@ function update() {
       bt.y = bt.baseY + Math.sin((frame + bt.phase * 10) * 0.07) * 6;
       if (Math.hypot(bt.x - bird.x, bt.y - bird.y) < bird.r * birdScale + BAT_R + 8) {
         bt.taken = true;
-        batUses = BAT_USES;
+        if (!batUnbreakable) batUses += BAT_USES;   // les coups s'additionnent
       }
     }
     bats = bats.filter(bt => !bt.taken && bt.x + BAT_R > -10);
