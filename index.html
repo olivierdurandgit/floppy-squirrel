@@ -92,6 +92,54 @@
     display: none;
   }
   #godBtn.on { background: #b8860b; color: #fff; }
+  #codePanel {
+    position: absolute;
+    left: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 9;
+    background: rgba(20,24,28,.92);
+    border-radius: 12px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.5);
+  }
+  #codePanel.hidden { display: none; }
+  #codeDisplay {
+    color: #ffd86b;
+    font-size: 22px;
+    font-weight: bold;
+    letter-spacing: 4px;
+    font-family: monospace;
+  }
+  #codeKeys {
+    display: grid;
+    grid-template-columns: repeat(3, 44px);
+    gap: 6px;
+  }
+  #codeKeys button {
+    height: 44px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255,255,255,.85);
+    color: #222;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  #codeKeys button:active { background: #ffd86b; }
+  #codeClose {
+    border: none;
+    border-radius: 16px;
+    background: #c0392b;
+    color: #fff;
+    font-size: 13px;
+    padding: 7px 14px;
+    cursor: pointer;
+  }
   #homeBtn {
     position: absolute;
     left: 50%;
@@ -217,6 +265,11 @@
   <button id="pauseBtn" aria-label="Pause">⏸</button>
   <button id="godBtn">🛡️ Invincible : OFF</button>
   <button id="homeBtn">🏠 Accueil</button>
+  <div id="codePanel" class="hidden">
+    <div id="codeDisplay">····</div>
+    <div id="codeKeys"></div>
+    <button id="codeClose">Fermer ✕</button>
+  </div>
   <div id="customize" class="hidden">
     <h2>🎨 Personnalisation</h2>
     <canvas id="preview" width="180" height="130"></canvas>
@@ -244,6 +297,9 @@ const overlay = document.getElementById('overlay');
 const pauseBtn = document.getElementById('pauseBtn');
 const homeBtn = document.getElementById('homeBtn');
 const godBtn = document.getElementById('godBtn');
+const codePanel = document.getElementById('codePanel');
+const codeDisplay = document.getElementById('codeDisplay');
+const codeKeys = document.getElementById('codeKeys');
 const W = canvas.width, H = canvas.height;
 let paused = false;
 // triche : le code 1203 déverrouille le bouton d'invincibilité
@@ -2123,35 +2179,38 @@ canvas.addEventListener('mousedown', e => { e.preventDefault(); flap(); });
 canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
 overlay.addEventListener('mousedown', e => { e.preventDefault(); flap(); });
 overlay.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
-window.addEventListener('keydown', e => {
-  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
-  else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
-  // codes secrets : 1203 = affiche/cache le bouton d'invincibilité, 4589 = vitesse ×4
-  if (e.key >= '0' && e.key <= '9') {
-    codeBuffer = (codeBuffer + e.key).slice(-4);
-    if (codeBuffer === '1203') {
-      cheatUnlocked = !cheatUnlocked;          // retaper le code masque le bouton
-      if (!cheatUnlocked) {                    // en le masquant, on coupe l'invincibilité
-        godMode = false;
-        godBtn.textContent = '🛡️ Invincible : OFF';
-        godBtn.classList.remove('on');
-      }
-      cheatUsed = true;
-    } else if (codeBuffer === '4589') {
-      cheatSpeed = (cheatSpeed === 1) ? 4 : 1;
-      cheatUsed = true;
-    } else if (codeBuffer === '6365') {
-      const v = prompt('Score de départ ?', String(startScore));
-      if (v !== null) {
-        const n = parseInt(v, 10);
-        if (!isNaN(n) && n >= 0) {
-          startScore = n;
-          cheatUsed = true;
-          if (state === 'play') score = n;   // applique aussi en cours de partie
-        }
+// Saisie d'un chiffre de code (clavier ou pavé tactile) : 1203, 4589, 6365
+function enterCode(d) {
+  codeBuffer = (codeBuffer + d).slice(-4);
+  if (codeDisplay) codeDisplay.textContent = codeBuffer.padStart(4, '·');
+  if (codeBuffer === '1203') {
+    cheatUnlocked = !cheatUnlocked;          // retaper le code masque le bouton
+    if (!cheatUnlocked) {                    // en le masquant, on coupe l'invincibilité
+      godMode = false;
+      godBtn.textContent = '🛡️ Invincible : OFF';
+      godBtn.classList.remove('on');
+    }
+    cheatUsed = true;
+  } else if (codeBuffer === '4589') {
+    cheatSpeed = (cheatSpeed === 1) ? 4 : 1;
+    cheatUsed = true;
+  } else if (codeBuffer === '6365') {
+    const v = prompt('Score de départ ?', String(startScore));
+    if (v !== null) {
+      const n = parseInt(v, 10);
+      if (!isNaN(n) && n >= 0) {
+        startScore = n;
+        cheatUsed = true;
+        if (state === 'play') score = n;   // applique aussi en cours de partie
       }
     }
   }
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
+  else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
+  if (e.key >= '0' && e.key <= '9') enterCode(e.key);
 });
 
 // bouton pause (stopPropagation pour ne pas déclencher un saut)
@@ -2172,6 +2231,53 @@ function godHandler(e) {
 }
 godBtn.addEventListener('mousedown', godHandler);
 godBtn.addEventListener('touchstart', godHandler, { passive: false });
+
+// --- Pavé de codes (mobile) : appui long de 5 s sur l'écran pour l'ouvrir ---
+function buildCodeKeys() {
+  codeKeys.innerHTML = '';
+  ['1','2','3','4','5','6','7','8','9','','0',''].forEach(d => {
+    const b = document.createElement('button');
+    if (d === '') { b.style.visibility = 'hidden'; }
+    else {
+      b.textContent = d;
+      const press = (e) => { e.preventDefault(); e.stopPropagation(); enterCode(d); };
+      b.addEventListener('mousedown', press);
+      b.addEventListener('touchstart', press, { passive: false });
+    }
+    codeKeys.appendChild(b);
+  });
+}
+buildCodeKeys();
+
+function openCodePanel() {
+  codeBuffer = '';
+  codeDisplay.textContent = '····';
+  codePanel.classList.remove('hidden');
+  if (state === 'play') paused = true;   // fige le jeu pendant la saisie
+}
+function closeCodePanel(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  codePanel.classList.add('hidden');
+  if (paused && state === 'play') { paused = false; pauseBtn.textContent = '⏸'; }
+}
+document.getElementById('codeClose').addEventListener('mousedown', closeCodePanel);
+document.getElementById('codeClose').addEventListener('touchstart', closeCodePanel, { passive: false });
+
+// détection de l'appui long (5 s) n'importe où sur le jeu
+let longPressTimer = null;
+function startLongPress() {
+  clearTimeout(longPressTimer);
+  longPressTimer = setTimeout(openCodePanel, 5000);
+}
+function cancelLongPress() { clearTimeout(longPressTimer); }
+[canvas, overlay].forEach(el => {
+  el.addEventListener('touchstart', startLongPress, { passive: true });
+  el.addEventListener('touchend', cancelLongPress);
+  el.addEventListener('touchcancel', cancelLongPress);
+  el.addEventListener('mousedown', startLongPress);
+  el.addEventListener('mouseup', cancelLongPress);
+  el.addEventListener('mouseleave', cancelLongPress);
+});
 
 showReady();   // affiche l'accueil (avec le bouton Personnaliser) dès le chargement
 requestAnimationFrame(loop);
