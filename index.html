@@ -250,7 +250,8 @@ let paused = false;
 let cheatUnlocked = false;
 let godMode = false;
 let codeBuffer = '';
-let cheatSpeed = 1;   // code 4589 : multiplie la vitesse du jeu (1 ou 2)
+let cheatSpeed = 1;   // code 4589 : multiplie la vitesse du jeu (1 ou 4)
+let cheatUsed = false; // un code a-t-il été tapé pendant cette partie ? (score non enregistré)
 
 // --- Personnalisation : t-shirt de l'écureuil ---
 const SHIRTS = [
@@ -423,6 +424,7 @@ function reset() {
   portal = null;
   portalSpawned = false;
   portalFlashUntil = 0;
+  cheatUsed = false;
   paused = false;
   bgScroll = 0;
 }
@@ -687,7 +689,9 @@ function consumeShield() {
 function die(cause) {
   state = 'dead';
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
-  if (score > best) { best = score; localStorage.setItem('flappyBest', best); }
+  // score non enregistré si une triche a été utilisée (code tapé, invincibilité, vitesse boostée)
+  const cheated = cheatUsed || godMode || cheatSpeed > 1;
+  if (!cheated && score > best) { best = score; localStorage.setItem('flappyBest', best); }
   showDead(cause);
 }
 
@@ -2105,11 +2109,21 @@ overlay.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { p
 window.addEventListener('keydown', e => {
   if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); flap(); }
   else if (e.code === 'KeyP' || e.code === 'Escape') { e.preventDefault(); togglePause(); }
-  // codes secrets : 1203 = bouton d'invincibilité, 4589 = vitesse ×2
+  // codes secrets : 1203 = affiche/cache le bouton d'invincibilité, 4589 = vitesse ×4
   if (e.key >= '0' && e.key <= '9') {
     codeBuffer = (codeBuffer + e.key).slice(-4);
-    if (codeBuffer === '1203') cheatUnlocked = true;
-    else if (codeBuffer === '4589') cheatSpeed = (cheatSpeed === 1) ? 4 : 1;
+    if (codeBuffer === '1203') {
+      cheatUnlocked = !cheatUnlocked;          // retaper le code masque le bouton
+      if (!cheatUnlocked) {                    // en le masquant, on coupe l'invincibilité
+        godMode = false;
+        godBtn.textContent = '🛡️ Invincible : OFF';
+        godBtn.classList.remove('on');
+      }
+      cheatUsed = true;
+    } else if (codeBuffer === '4589') {
+      cheatSpeed = (cheatSpeed === 1) ? 4 : 1;
+      cheatUsed = true;
+    }
   }
 });
 
@@ -2128,8 +2142,6 @@ function godHandler(e) {
   godMode = !godMode;
   godBtn.textContent = godMode ? '🛡️ Invincible : ON' : '🛡️ Invincible : OFF';
   godBtn.classList.toggle('on', godMode);
-  // en désactivant, le bouton disparaît (il faut retaper 1203 pour le réafficher)
-  if (!godMode) cheatUnlocked = false;
 }
 godBtn.addEventListener('mousedown', godHandler);
 godBtn.addEventListener('touchstart', godHandler, { passive: false });
