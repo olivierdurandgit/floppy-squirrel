@@ -1800,11 +1800,11 @@ function drawDriedLake() {
   for (const f of lakeItems.fish) drawScrolled(f.x, (x) => drawDeadFish(x, f.y, f.size, f.rot, f.c));
 }
 
-function drawGround() {
-  // sol industriel (terre/béton sombre)
-  ctx.fillStyle = '#6e6a58';
+function drawGround(sand = 0) {
+  // sol : béton industriel → sable jaune selon le décor désert (sand = 0..1)
+  ctx.fillStyle = mix([110, 106, 88], [226, 196, 108], sand);
   ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
-  ctx.fillStyle = '#565241';
+  ctx.fillStyle = mix([86, 82, 65], [198, 162, 74], sand);
   ctx.fillRect(0, GROUND_Y, W, 6);
 }
 
@@ -1830,7 +1830,7 @@ function draw() {
     ctx.fillStyle = `rgba(232, 205, 110, ${0.32 * desertTint})`;
     ctx.fillRect(0, 0, W, GROUND_Y);
   }
-  drawGround();
+  drawGround(desertTint);   // sol jaune sable quand le désert est actif
   // décor d'arrière-plan : glisse à la vitesse du décor lors d'un changement
   if (transitioning) {
     ctx.save(); ctx.translate(-transOffset, 0); drawSceneDecor(fromScene); ctx.restore();      // sort à gauche
