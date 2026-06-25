@@ -432,6 +432,7 @@ const OBJ_INTERVAL = 70;   // cadence d'apparition des renards (frames)
 let bats = [];             // battes à ramasser (mode dodge)
 let batUses = 0;           // coups de batte restants (tue un renard)
 let swingUntil = 0;        // timestamp ms : animation de frappe
+let hitFx = [];            // impacts « POW » des renards assommés
 const BAT_R = 12;
 const BAT_USES = 3;
 let mushrooms = [];        // champignons hallucinogènes
@@ -508,6 +509,7 @@ function reset() {
   bats = [];
   batUses = 0;
   swingUntil = 0;
+  hitFx = [];
   mushrooms = [];
   tripUntil = 0;
   weights = [];
@@ -860,7 +862,8 @@ function swingBat() {
   for (let i = objects.length - 1; i >= 0; i--) {
     const o = objects[i];
     if (Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r + STRIKE_REACH) {
-      objects.splice(i, 1);
+      hitFx.push({ x: o.x, y: o.y, until: Date.now() + 350 });   // « POW » à l'endroit du renard
+      objects.splice(i, 1);                                      // le renard disparaît
       score += 2;
       hitAny = true;
     }
@@ -2232,6 +2235,32 @@ function draw() {
   else {
     for (const o of objects) drawFox(o);
     for (const bt of bats) drawBatItem(bt.x, bt.y);
+    // impacts « POW » des renards assommés
+    hitFx = hitFx.filter(fx => fx.until > Date.now());
+    for (const fx of hitFx) {
+      const a = (fx.until - Date.now()) / 350;          // 1 → 0
+      const s = 1 + (1 - a) * 0.6;
+      ctx.save();
+      ctx.translate(fx.x, fx.y);
+      ctx.scale(s, s);
+      // étoile jaune
+      ctx.fillStyle = `rgba(255,210,60,${a})`;
+      ctx.strokeStyle = `rgba(200,120,0,${a})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 16; i++) {
+        const ang = Math.PI * i / 8;
+        const rr = (i % 2 === 0) ? 20 : 9;
+        const px = Math.cos(ang) * rr, py = Math.sin(ang) * rr;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = `rgba(180,40,20,${a})`;
+      ctx.font = 'bold 12px Segoe UI, Arial';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('POW', 0, 0);
+      ctx.restore();
+    }
   }
   // grisaille commune (selon les vies perdues)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
@@ -2259,13 +2288,19 @@ function draw() {
   // bulle de protection autour de l'écureuil (bouclier actif) — fissurée après 1 utilisation
   if (shieldActive()) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
 
-  // batte tenue par l'écureuil (mode dodge) — taille normale, frappe animée
-  if (gameMode === 'dodge' && batUses > 0) {
-    const swinging = Date.now() < swingUntil;
-    const swingRot = swinging ? (1 - (swingUntil - Date.now()) / 250) * 2.2 : 0; // 0 → ~2.2 rad
+  // batte tenue par l'écureuil (mode dodge) — pivote visiblement quand on frappe
+  const swinging = Date.now() < swingUntil;
+  if (gameMode === 'dodge' && (batUses > 0 || swinging)) {
     ctx.save();
     ctx.translate(bird.x + bird.r * birdScale * 0.7, bird.y - bird.r * birdScale * 0.4);
-    ctx.rotate(-0.5 + Math.sin(frame * 0.3) * 0.12 + swingRot);
+    let rot;
+    if (swinging) {
+      const p = 1 - (swingUntil - Date.now()) / 280;   // 0 → 1
+      rot = -1.5 + p * 3.0;                              // grand arc : haut → bas
+    } else {
+      rot = -1.0 + Math.sin(frame * 0.3) * 0.12;        // au repos, légèrement levée
+    }
+    ctx.rotate(rot);
     drawBatItem(0, 0);
     ctx.restore();
   }
