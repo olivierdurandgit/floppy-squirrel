@@ -290,6 +290,8 @@ const SPEED_FROM = 15;         // score à partir duquel la vitesse augmente
 const DOUBLE_FROM = 100;       // score à partir duquel les points doublent
 const MAX_SPEED = 6.0;         // vitesse maximale
 const ACCEL = 0.03;            // gain de vitesse par point au-delà du seuil
+const INVERT_AT = 75;          // score à partir duquel le sens de déplacement s'inverse
+const ACCEL2 = 0.012;          // accélération réduite au-delà de INVERT_AT
 let speed = BASE_SPEED;        // vitesse courante (dynamique)
 let bgScroll = 0;              // défilement du décor d'arrière-plan (parallaxe)
 const BG_PARALLAX = 0.4;      // le décor défile plus lentement que les obstacles
@@ -669,9 +671,11 @@ function update() {
   bird.y += bird.vy;
   bird.rot = Math.max(-0.5, Math.min(1.2, bird.vy / 12));
 
-  // Au-delà de 15 points : la vitesse augmente progressivement avec le score
+  // Vitesse : accélération normale jusqu'à 75, puis réduite ensuite
   if (score >= SPEED_FROM) {
-    speed = Math.min(MAX_SPEED, BASE_SPEED + (score - SPEED_FROM) * ACCEL);
+    let sp = BASE_SPEED + (Math.min(score, INVERT_AT) - SPEED_FROM) * ACCEL;
+    if (score > INVERT_AT) sp += (score - INVERT_AT) * ACCEL2;
+    speed = Math.min(MAX_SPEED, sp);
   } else {
     speed = BASE_SPEED;
   }
@@ -1836,7 +1840,10 @@ function draw() {
   ctx.clearRect(0, 0, W, H);
   // pendant l'effet hallucinogène : zoom pulsé centré sur l'écureuil
   const tripping = Date.now() < tripUntil;
-  ctx.save();
+  const inverted = score >= INVERT_AT;       // sens inversé au-delà de 75 points
+  ctx.save();                                 // calque MIROIR (monde uniquement)
+  if (inverted) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+  ctx.save();                                 // calque ZOOM (effet hallucinogène)
   if (tripping) {
     const z = 1.2 + Math.sin(frame * 0.12) * 0.2;   // pulse entre 1.0 et ~1.4
     ctx.translate(bird.x, bird.y);
@@ -1877,7 +1884,10 @@ function draw() {
   // bulle de protection autour de l'écureuil (bouclier actif) — fissurée après 1 utilisation
   if (shieldActive()) drawShieldBubble(bird.x, bird.y, bird.r * birdScale + 10, shieldHits);
 
-  // score
+  ctx.restore();   // fin du zoom
+  ctx.restore();   // fin du miroir
+
+  // ---- INTERFACE (jamais en miroir : reste lisible) ----
   if (state === 'play' || state === 'dead') {
     ctx.fillStyle = '#fff';
     ctx.strokeStyle = '#333';
@@ -1904,8 +1914,6 @@ function draw() {
     for (let i = 0; i < total; i++) hearts += i < lives ? '❤️' : '🤍';
     ctx.fillText(hearts, 12, 34);
   }
-
-  ctx.restore();   // fin du zoom
 
   // ---- EFFET HALLUCINOGÈNE : couleurs partout (par-dessus, sans zoom) ----
   if (tripping) drawTrip();
