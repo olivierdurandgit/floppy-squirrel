@@ -273,7 +273,7 @@
     cursor: pointer;
   }
   #modeRow button:hover { background: #27ae60; }
-  #customizeBtn, #deadHomeBtn, #codesBtn {
+  #customizeBtn, #deadHomeBtn {
     margin-top: 10px;
     border: none;
     border-radius: 22px;
@@ -284,7 +284,7 @@
     padding: 9px 20px;
     cursor: pointer;
   }
-  #customizeBtn:hover, #deadHomeBtn:hover, #codesBtn:hover { background: #fff; }
+  #customizeBtn:hover, #deadHomeBtn:hover { background: #fff; }
 </style>
 </head>
 <body>
@@ -783,16 +783,11 @@ function showReady() {
       <button id="modeClassic">🪵 Colonnes<br><small>🏆 ${bestClassic}</small></button>
       <button id="modeObjects">☄️ Objets<br><small>🏆 ${bestDodge}</small></button>
     </div>
-    <button id="customizeBtn">👕 Personnaliser</button>
-    <button id="codesBtn">🔢 Codes</button>`;
+    <button id="customizeBtn">👕 Personnaliser</button>`;
   const cb = document.getElementById('customizeBtn');
   const openCust = (e) => { e.preventDefault(); e.stopPropagation(); openCustomize(); };
   cb.addEventListener('mousedown', openCust);
   cb.addEventListener('touchstart', openCust, { passive: false });
-  const codesB = document.getElementById('codesBtn');
-  const openCodes = (e) => { e.preventDefault(); e.stopPropagation(); openCodePanel(); };
-  codesB.addEventListener('mousedown', openCodes);
-  codesB.addEventListener('touchstart', openCodes, { passive: false });
 
   const startWith = (mode) => (e) => { e.preventDefault(); e.stopPropagation(); gameMode = mode; startCountdown(); };
   ['modeClassic', 'modeObjects'].forEach(id => {
@@ -804,11 +799,13 @@ function showReady() {
 }
 
 function showDead(cause) {
-  const obstacleMsg = scene === 'forest'
-    ? 'Floppy a fini en bûches'
-    : scene === 'lake'
-      ? 'Floppy s’est noyé dans le sable'
-      : 'Floppy a inhalé trop de fumée';
+  const obstacleMsg = gameMode === 'dodge'
+    ? 'Floppy a fini dans le ventre d’un renard'
+    : scene === 'forest'
+      ? 'Floppy a fini en bûches'
+      : scene === 'lake'
+        ? 'Floppy s’est noyé dans le sable'
+        : 'Floppy a inhalé trop de fumée';
   // messages dédiés si on meurt sous l'effet d'un item
   const msg = (Date.now() < tripUntil)
     ? 'Il vaut mieux éviter de manger certaines choses…'
