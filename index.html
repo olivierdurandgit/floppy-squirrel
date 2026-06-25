@@ -870,7 +870,7 @@ function swingBat() {
     if (Math.hypot(o.x - bird.x, o.y - bird.y) < er + o.r + STRIKE_REACH) {
       hitFx.push({ x: o.x, y: o.y, until: Date.now() + 350 });   // « POW » à l'endroit du renard
       objects.splice(i, 1);                                      // le renard disparaît
-      score += 2;
+      score += 5;                                                // renard tué = 5 points
       hitAny = true;
     }
   }
@@ -944,7 +944,6 @@ function update() {
     for (const o of objects) {
       o.x -= speed;
       o.rot += o.spin;
-      if (!o.passed && o.x < bird.x) { o.passed = true; score += pointsPerPipe; }
     }
     objects = objects.filter(o => o.x + o.r > -10);
     // battes : déplacement, ondulation, ramassage (donne 3 coups)
@@ -1015,7 +1014,7 @@ function update() {
     if (Math.hypot(dx, dy) < bird.r + SMALL_R + CAPTURE_MARGIN) {
       b.captured = true;
       followers.push({ body: b.body, stroke: b.stroke }); // garde sa couleur
-      score += 5;           // bonus de score à la capture
+      score += (gameMode === 'dodge') ? 1 : 5;   // écureuil : 1 pt en chasse aux renards, 5 en colonnes
     }
   }
   freeBirds = freeBirds.filter(b => !b.captured && b.x + SMALL_R > -10);
