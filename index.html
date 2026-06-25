@@ -784,7 +784,7 @@ function showReady() {
     <p>Choisis un mode :</p>
     <div id="modeRow">
       <button id="modeClassic">🪵 Colonnes<br><small>🏆 ${bestClassic}</small></button>
-      <button id="modeObjects">☄️ Objets<br><small>🏆 ${bestDodge}</small></button>
+      <button id="modeObjects">🦊 Chasse aux renards<br><small>🏆 ${bestDodge}</small></button>
     </div>
     <button id="customizeBtn">👕 Personnaliser</button>`;
   const cb = document.getElementById('customizeBtn');
@@ -821,7 +821,7 @@ function showDead(cause) {
     <p>${msg}</p>
     <p>Score</p>
     <div class="big">${score}</div>
-    <p>Meilleur (${gameMode === 'dodge' ? 'Objets' : 'Colonnes'}) : ${getBest()}</p>
+    <p>Meilleur (${gameMode === 'dodge' ? 'Chasse aux renards' : 'Colonnes'}) : ${getBest()}</p>
     <button id="deadHomeBtn">🏠 Accueil</button>
     <div class="hint">Clique pour rejouer</div>`;
   const hb = document.getElementById('deadHomeBtn');
