@@ -315,11 +315,13 @@ const SPEED_FROM = 15;         // score à partir duquel la vitesse augmente
 const DOUBLE_FROM = 100;       // score à partir duquel les points doublent
 const MAX_SPEED = 6.0;         // vitesse maximale
 const ACCEL = 0.03;            // gain de vitesse par point au-delà du seuil
-const INVERT_AT = 75;          // score à partir duquel le portail apparaît (puis sens inversé)
+const INVERT_AT = 75;          // 1er portail : inverse le sens horizontal
+const FLIP_AT = 150;           // 2e portail : remet l'horizontal + inverse haut/bas
 const ACCEL2 = 0.02;           // accélération réduite au-delà de INVERT_AT
-let inverted = false;          // sens inversé (après avoir franchi le portail) ?
-let portal = null;             // portail d'inversion ({ x }) ou null
-let portalSpawned = false;     // le portail a-t-il déjà été créé ?
+let inverted = false;          // sens horizontal inversé ?
+let flipped = false;           // haut/bas inversé ?
+let portal = null;             // portail actif ({ x, type }) ou null
+let portalStage = 0;           // 0 = aucun, 1 = portail 75 fait, 2 = portail 150 fait
 let portalFlashUntil = 0;      // timestamp ms : flash au passage du portail
 const PORTAL_FLASH_MS = 500;
 let speed = BASE_SPEED;        // vitesse courante (dynamique)
@@ -422,8 +424,9 @@ function reset() {
   transitioning = false;
   transOffset = 0;
   inverted = false;
+  flipped = false;
   portal = null;
-  portalSpawned = false;
+  portalStage = 0;
   portalFlashUntil = 0;
   cheatUsed = false;
   paused = false;
@@ -555,10 +558,15 @@ function closeCustomize() {
 document.getElementById('closeCustomize').addEventListener('click', closeCustomize);
 
 function spawnPipe() {
-  // à 75 points, ce créneau de colonne devient le PORTAIL (pas de pilier ni d'item)
-  if (!portalSpawned && !inverted && score >= INVERT_AT) {
-    portal = { x: W + PIPE_W / 2 };
-    portalSpawned = true;
+  // ce créneau de colonne devient un PORTAIL (pas de pilier ni d'item)
+  if (portalStage === 0 && score >= INVERT_AT) {
+    portal = { x: W + PIPE_W / 2, type: 'A' };   // 75 : inverse l'horizontal
+    portalStage = 1;
+    return;
+  }
+  if (portalStage === 1 && inverted && score >= FLIP_AT) {
+    portal = { x: W + PIPE_W / 2, type: 'B' };   // 150 : remet l'horizontal + inverse haut/bas
+    portalStage = 2;
     return;
   }
   const margin = 60;
@@ -831,11 +839,12 @@ function update() {
   }
   shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
 
-  // Portail d'inversion (créé dans spawnPipe à la place d'une colonne) : inverse le sens au passage
+  // Portail (créé dans spawnPipe à la place d'une colonne) : effet au passage selon le type
   if (portal) {
     portal.x -= speed;
-    if (portal.x <= bird.x) {                 // franchi → sens inversé + flash
-      inverted = true;
+    if (portal.x <= bird.x) {
+      if (portal.type === 'A') { inverted = true; }              // 75 : horizontal inversé
+      else if (portal.type === 'B') { inverted = false; flipped = true; } // 150 : horizontal normal + haut/bas inversé
       portal = null;
       portalFlashUntil = Date.now() + PORTAL_FLASH_MS;
     }
@@ -1930,7 +1939,8 @@ function draw() {
   // pendant l'effet hallucinogène : zoom pulsé centré sur l'écureuil
   const tripping = Date.now() < tripUntil;
   ctx.save();                                 // calque MIROIR (monde uniquement)
-  if (inverted) { ctx.translate(W, 0); ctx.scale(-1, 1); }
+  if (inverted) { ctx.translate(W, 0); ctx.scale(-1, 1); }   // gauche/droite
+  if (flipped) { ctx.translate(0, H); ctx.scale(1, -1); }    // haut/bas
   ctx.save();                                 // calque ZOOM (effet hallucinogène)
   if (tripping) {
     const z = 1.2 + Math.sin(frame * 0.12) * 0.2;   // pulse entre 1.0 et ~1.4
