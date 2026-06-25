@@ -554,6 +554,12 @@ function closeCustomize() {
 document.getElementById('closeCustomize').addEventListener('click', closeCustomize);
 
 function spawnPipe() {
+  // à 75 points, ce créneau de colonne devient le PORTAIL (pas de pilier ni d'item)
+  if (!portalSpawned && !inverted && score >= INVERT_AT) {
+    portal = { x: W + PIPE_W / 2 };
+    portalSpawned = true;
+    return;
+  }
   const margin = 60;
   const top = margin + Math.random() * (GROUND_Y - PIPE_GAP - margin * 2);
   pipes.push({ x: W, top, passed: false, hitTop: false, hitBot: false, seed: Math.random() * 100, decor: scene });
@@ -824,11 +830,7 @@ function update() {
   }
   shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
 
-  // Portail d'inversion : apparaît une fois à 75 points, et inverse le sens quand on le franchit
-  if (!portalSpawned && !inverted && score >= INVERT_AT) {
-    portal = { x: W + 40 };
-    portalSpawned = true;
-  }
+  // Portail d'inversion (créé dans spawnPipe à la place d'une colonne) : inverse le sens au passage
   if (portal) {
     portal.x -= speed;
     if (portal.x <= bird.x) {                 // franchi → sens inversé + flash
