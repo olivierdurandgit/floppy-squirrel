@@ -391,7 +391,7 @@ function slide(f1, f2, dur, type) {
   o.start(t); o.stop(t + dur + 0.03);
 }
 // bruitages
-function sfxFlap()  { tone(520, 0.08, 'square', sfxGain, 0.7); }
+function sfxFlap()  { tone(440, 0.05, 'sine', sfxGain, 0.22); }
 function sfxPick()  { tone(880, 0.09, 'triangle', sfxGain, 0.8); tone(1320, 0.08, 'triangle', sfxGain, 0.5); }
 function sfxHit()   { tone(150, 0.18, 'sawtooth', sfxGain, 0.9); }
 function sfxDeath() { slide(440, 90, 0.6, 'sawtooth'); }
