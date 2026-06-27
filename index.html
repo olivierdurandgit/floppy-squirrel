@@ -1725,8 +1725,18 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses, socks, he
   // ---- CHAUSSETTES (optionnel) : sur les pattes ----
   if (socks) drawSocks(r, socks);
 
-  // ---- CHAPEAU (optionnel) : par-dessus la tête ----
-  if (hat) drawHat(r, hat);
+  // ---- CHAPEAU (optionnel) : par-dessus la tête (repositionné sur la grosse tête rouge) ----
+  if (hat) {
+    if (headRed) {
+      ctx.save();
+      ctx.translate(-r * 0.475, -r * 0.025);
+      ctx.scale(1.5, 1.5);
+      drawHat(r, hat);
+      ctx.restore();
+    } else {
+      drawHat(r, hat);
+    }
+  }
 
   // restaure les réglages de trait
   ctx.strokeStyle = stroke;
