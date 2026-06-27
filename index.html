@@ -324,6 +324,7 @@
     <h2>🎨 Personnalisation</h2>
     <canvas id="preview" width="180" height="130"></canvas>
     <div id="tabs">
+      <button class="tab" data-tab="color">🎨 Couleur</button>
       <button class="tab" data-tab="shirt">👕 T-shirt</button>
       <button class="tab" data-tab="hat">🎩 Chapeau</button>
       <button class="tab" data-tab="glasses">🕶️ Lunettes</button>
@@ -452,6 +453,21 @@ let startScore = 0;   // code 6365 : score de départ choisi
 let bigHead = false;  // code 4562 : grosse tête rouge (cosmétique)
 
 // --- Personnalisation : t-shirt de l'écureuil ---
+// couleurs de corps de l'écureuil (corps, contour)
+const BODY_COLORS = [
+  { name: 'Brun',  body: [150, 92, 50],  stroke: [38, 24, 14] },
+  { name: 'Roux',  body: [200, 110, 45], stroke: [120, 55, 15] },
+  { name: 'Gris',  body: [150, 150, 155],stroke: [80, 80, 85] },
+  { name: 'Noir',  body: [64, 64, 70],   stroke: [22, 22, 26] },
+  { name: 'Blanc', body: [235, 235, 235],stroke: [150, 150, 150] },
+  { name: 'Beige', body: [212, 182, 132],stroke: [140, 110, 70] },
+  { name: 'Rose',  body: [240, 150, 180],stroke: [185, 95, 125] },
+  { name: 'Bleu',  body: [110, 150, 210],stroke: [60, 90, 150] }
+];
+let bodyIndex = Number(localStorage.getItem('floppyBody') || 0);
+if (!(bodyIndex >= 0 && bodyIndex < BODY_COLORS.length)) bodyIndex = 0;
+function currentBody() { return BODY_COLORS[bodyIndex]; }
+
 const SHIRTS = [
   { name: 'Aucun',  color: null },
   { name: 'Rouge',  color: [231, 76, 60] },
@@ -675,7 +691,7 @@ const previewCanvas = document.getElementById('preview');
 const previewCtx = previewCanvas.getContext('2d');
 const shirtOptionsEl = document.getElementById('shirtOptions');
 
-let currentTab = 'shirt';
+let currentTab = 'color';
 
 function drawPreview() {
   previewCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
@@ -683,7 +699,8 @@ function drawPreview() {
   ctx = previewCtx;                 // drawSquirrel dessine sur le canvas d'aperçu
   ctx.save();
   ctx.translate(previewCanvas.width / 2 - 12, previewCanvas.height / 2 + 6);
-  drawSquirrel(20, [150, 92, 50], [38, 24, 14], 0,
+  const bc = currentBody();
+  drawSquirrel(20, bc.body, bc.stroke, 0,
     currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor());
   ctx.restore();
   ctx = saved;
@@ -695,7 +712,19 @@ function buildOptions() {
   document.querySelectorAll('.tab').forEach(t =>
     t.classList.toggle('active', t.dataset.tab === currentTab));
 
-  if (currentTab === 'shirt' || currentTab === 'socks') {
+  if (currentTab === 'color') {
+    BODY_COLORS.forEach((c, i) => {
+      const el = document.createElement('div');
+      el.className = 'swatch' + (i === bodyIndex ? ' selected' : '');
+      el.title = c.name;
+      el.style.background = `rgb(${c.body[0]},${c.body[1]},${c.body[2]})`;
+      el.addEventListener('click', () => {
+        bodyIndex = i; localStorage.setItem('floppyBody', i);
+        buildOptions(); drawPreview();
+      });
+      shirtOptionsEl.appendChild(el);
+    });
+  } else if (currentTab === 'shirt' || currentTab === 'socks') {
     const list = currentTab === 'shirt' ? SHIRTS : SOCKS;
     const sel = currentTab === 'shirt' ? shirtIndex : socksIndex;
     const key = currentTab === 'shirt' ? 'floppyShirt' : 'floppySocks';
@@ -1654,7 +1683,7 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses, socks, he
 
   // ---- GROSSE TÊTE ROUGE (code 4562) : recouvre la tête normale ----
   if (headRed) {
-    const hx = r * 1.45, hy = -r * 0.35, hr = r * 1.05;
+    const hx = r * 1.55, hy = -r * 0.45, hr = r * 1.5;
     ctx.fillStyle = '#e0322b';
     ctx.strokeStyle = '#a11f1a';
     ctx.lineWidth = Math.max(1.5, r * 0.13);
@@ -1833,7 +1862,8 @@ function drawBird() {
   ctx.rotate(bird.rot);
   // plus de vies perdues = plus gris (0 = couleur normale, 1 = tout gris)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
-  drawSquirrel(bird.r * SQUIRREL_SCALE * birdScale, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor(), bigHead);
+  const bc = currentBody();
+  drawSquirrel(bird.r * SQUIRREL_SCALE * birdScale, bc.body, bc.stroke, dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor(), bigHead);
   ctx.restore();
 }
 
