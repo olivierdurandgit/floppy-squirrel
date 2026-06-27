@@ -925,11 +925,13 @@ function update() {
   const pointsPerPipe = score >= DOUBLE_FROM ? 2 : 1;
 
   if (gameMode === 'classic') {
-    // Spawn d'un pilier seulement si le dernier est assez loin (distance minimale garantie)
+    // Spawn d'un pilier seulement si le dernier obstacle (pilier OU portail) est assez loin
     const lastPipe = pipes.length ? pipes[pipes.length - 1] : null;
+    const lastX = Math.max(lastPipe ? lastPipe.x : -1e9, portal ? portal.x : -1e9);
     const dueByTime = frame % PIPE_INTERVAL === 0;
-    const farEnough = !lastPipe || (W - lastPipe.x) >= MIN_PIPE_DISTANCE;
-    if (!lastPipe || (dueByTime && farEnough)) spawnPipe();
+    const empty = lastX < -1e8;                       // ni pilier ni portail
+    const farEnough = empty || (W - lastX) >= MIN_PIPE_DISTANCE;
+    if (empty || (dueByTime && farEnough)) spawnPipe();
 
     for (const p of pipes) {
       p.x -= speed;
