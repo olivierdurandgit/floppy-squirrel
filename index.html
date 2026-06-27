@@ -479,6 +479,12 @@ const SHIRTS = [
   { name: 'Noir',   color: [52, 52, 60] },
   { name: 'Blanc',  color: [245, 245, 245] }
 ];
+// ajoute les couleurs des t-shirts à la palette du corps (contour assombri)
+SHIRTS.forEach(s => {
+  if (s.color && !BODY_COLORS.some(b => b.name === s.name)) {
+    BODY_COLORS.push({ name: s.name, body: s.color, stroke: s.color.map(c => Math.round(c * 0.55)) });
+  }
+});
 const HATS = [
   { name: 'Aucun', type: null },
   { name: 'Melon', type: 'bowler' },
