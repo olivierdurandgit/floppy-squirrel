@@ -293,7 +293,7 @@
     cursor: pointer;
   }
   #modeRow button:hover { background: #27ae60; }
-  #customizeBtn, #deadHomeBtn {
+  #customizeBtn, #deadHomeBtn, #codeBtn {
     margin-top: 10px;
     border: none;
     border-radius: 22px;
@@ -304,7 +304,7 @@
     padding: 9px 20px;
     cursor: pointer;
   }
-  #customizeBtn:hover, #deadHomeBtn:hover { background: #fff; }
+  #customizeBtn:hover, #deadHomeBtn:hover, #codeBtn:hover { background: #fff; }
 </style>
 </head>
 <body>
@@ -447,6 +447,7 @@ function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer =
 let cheatUnlocked = false;
 let godMode = false;
 let codeBuffer = '';
+let codePanelNonCheatOnly = false;   // pavé ouvert via le bouton "Code" de l'accueil (cheats ignorés)
 let cheatSpeed = 1;   // code 4589 : multiplie la vitesse du jeu (1 ou 4)
 let cheatUsed = false; // un code a-t-il été tapé pendant cette partie ? (score non enregistré)
 let startScore = 0;   // code 6365 : score de départ choisi
@@ -935,11 +936,16 @@ function showReady() {
       <button id="modeClassic">🪵 Colonnes<br><small>🏆 ${bestClassic}</small></button>
       <button id="modeObjects">🦊 Chasse aux renards<br><small>🏆 ${bestDodge}</small></button>
     </div>
-    <button id="customizeBtn">👕 Personnaliser</button>`;
+    <button id="customizeBtn">👕 Personnaliser</button>
+    <button id="codeBtn">🔢 Code</button>`;
   const cb = document.getElementById('customizeBtn');
   const openCust = (e) => { e.preventDefault(); e.stopPropagation(); openCustomize(); };
   cb.addEventListener('mousedown', openCust);
   cb.addEventListener('touchstart', openCust, { passive: false });
+  const codeB = document.getElementById('codeBtn');
+  const openCode = (e) => { e.preventDefault(); e.stopPropagation(); openCodePanel(true); };
+  codeB.addEventListener('mousedown', openCode);
+  codeB.addEventListener('touchstart', openCode, { passive: false });
 
   const startWith = (mode) => (e) => { e.preventDefault(); e.stopPropagation(); gameMode = mode; startCountdown(); };
   ['modeClassic', 'modeObjects'].forEach(id => {
@@ -2647,6 +2653,8 @@ overlay.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { p
 function enterCode(d) {
   codeBuffer = (codeBuffer + d).slice(-4);
   if (codeDisplay) codeDisplay.textContent = codeBuffer.padStart(4, '·');
+  // panneau "Code" de l'accueil : les codes de triche sont ignorés
+  if (codePanelNonCheatOnly && ['1203', '4589', '6365', '7458'].includes(codeBuffer)) return;
   if (codeBuffer === '1203') {
     cheatUnlocked = !cheatUnlocked;          // retaper le code masque le bouton
     if (!cheatUnlocked) {                    // en le masquant, on coupe l'invincibilité
@@ -2737,7 +2745,8 @@ function buildCodeKeys() {
 }
 buildCodeKeys();
 
-function openCodePanel() {
+function openCodePanel(nonCheatOnly) {
+  codePanelNonCheatOnly = (nonCheatOnly === true);   // panneau "Code" de l'accueil = sans triches
   codeBuffer = '';
   codeDisplay.textContent = '····';
   codePanel.classList.remove('hidden');
@@ -2746,6 +2755,7 @@ function openCodePanel() {
 function closeCodePanel(e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   codePanel.classList.add('hidden');
+  codePanelNonCheatOnly = false;
   if (paused && state === 'play') { paused = false; pauseBtn.textContent = '⏸'; }
 }
 document.getElementById('codeClose').addEventListener('mousedown', closeCodePanel);
