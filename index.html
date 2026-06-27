@@ -2512,7 +2512,9 @@ function enterCode(d) {
     batUses = batUnbreakable ? 999 : 0;
     cheatUsed = true;
   } else if (codeBuffer === '4562') {
-    bigHead = !bigHead;                     // grosse tête rouge (cosmétique, PAS une triche)
+    bigHead = !bigHead;                     // grosse tête rouge
+    lives++;                                // ajoute une vie à chaque saisie
+    cheatUsed = true;                       // donne un avantage → compté comme triche
   }
 }
 
