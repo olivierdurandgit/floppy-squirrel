@@ -342,6 +342,7 @@ let codeBuffer = '';
 let cheatSpeed = 1;   // code 4589 : multiplie la vitesse du jeu (1 ou 4)
 let cheatUsed = false; // un code a-t-il été tapé pendant cette partie ? (score non enregistré)
 let startScore = 0;   // code 6365 : score de départ choisi
+let bigHead = false;  // code 4562 : grosse tête rouge (cosmétique)
 
 // --- Personnalisation : t-shirt de l'écureuil ---
 const SHIRTS = [
@@ -1366,7 +1367,7 @@ function mix(c1, c2, t) {
 
 // Dessine un écureuil volant (façon illustration) centré sur l'origine, orienté vers la droite.
 // r = taille, bodyRgb/strokeRgb = couleur, dmg = grisaille (0 normal → 1 tout gris)
-function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses, socks) {
+function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses, socks, headRed) {
   const grey = [110, 110, 110];
   const body = mix(bodyRgb, grey, dmg);
   const stroke = mix(strokeRgb, [60, 60, 60], dmg);
@@ -1526,6 +1527,35 @@ function drawSquirrel(r, bodyRgb, strokeRgb, dmg, shirt, hat, glasses, socks) {
   ctx.moveTo(r * 2.2, r * 0.18); ctx.quadraticCurveTo(r * 2.8, r * 0.35, r * 3.1, r * 0.55);
   ctx.stroke();
 
+  // ---- GROSSE TÊTE ROUGE (code 4562) : recouvre la tête normale ----
+  if (headRed) {
+    const hx = r * 1.45, hy = -r * 0.35, hr = r * 1.05;
+    ctx.fillStyle = '#e0322b';
+    ctx.strokeStyle = '#a11f1a';
+    ctx.lineWidth = Math.max(1.5, r * 0.13);
+    // oreilles
+    ctx.beginPath();
+    ctx.moveTo(hx - r * 0.55, hy - hr * 0.8); ctx.lineTo(hx - r * 0.75, hy - hr * 1.5); ctx.lineTo(hx - r * 0.05, hy - hr * 0.9);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(hx + r * 0.55, hy - hr * 0.8); ctx.lineTo(hx + r * 0.75, hy - hr * 1.5); ctx.lineTo(hx + r * 0.05, hy - hr * 0.9);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    // tête
+    ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // museau
+    ctx.beginPath(); ctx.ellipse(hx + hr * 0.7, hy + hr * 0.25, hr * 0.5, hr * 0.38, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // œil
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(hx + hr * 0.35, hy - hr * 0.15, hr * 0.32, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1208';
+    ctx.beginPath(); ctx.arc(hx + hr * 0.45, hy - hr * 0.12, hr * 0.18, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(hx + hr * 0.52, hy - hr * 0.2, hr * 0.07, 0, Math.PI * 2); ctx.fill();
+    // nez
+    ctx.fillStyle = '#3a261a';
+    ctx.beginPath(); ctx.ellipse(hx + hr * 1.15, hy + hr * 0.28, hr * 0.16, hr * 0.13, 0, 0, Math.PI * 2); ctx.fill();
+  }
+
   // ---- CHAUSSETTES (optionnel) : sur les pattes ----
   if (socks) drawSocks(r, socks);
 
@@ -1678,7 +1708,7 @@ function drawBird() {
   ctx.rotate(bird.rot);
   // plus de vies perdues = plus gris (0 = couleur normale, 1 = tout gris)
   const dmg = Math.max(0, Math.min(1, (MAX_LIVES - lives) / MAX_LIVES));
-  drawSquirrel(bird.r * SQUIRREL_SCALE * birdScale, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor());
+  drawSquirrel(bird.r * SQUIRREL_SCALE * birdScale, [150, 92, 50], [38, 24, 14], dmg, currentShirtColor(), currentHatType(), currentGlassesType(), currentSocksColor(), bigHead);
   ctx.restore();
 }
 
@@ -2481,6 +2511,8 @@ function enterCode(d) {
     batUnbreakable = !batUnbreakable;       // batte incassable (coups illimités)
     batUses = batUnbreakable ? 999 : 0;
     cheatUsed = true;
+  } else if (codeBuffer === '4562') {
+    bigHead = !bigHead;                     // grosse tête rouge (cosmétique, PAS une triche)
   }
 }
 
