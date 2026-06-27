@@ -2514,7 +2514,7 @@ function enterCode(d) {
   } else if (codeBuffer === '4562') {
     bigHead = !bigHead;                     // grosse tête rouge
     lives++;                                // ajoute une vie à chaque saisie
-    cheatUsed = true;                       // donne un avantage → compté comme triche
+    // NON compté comme triche : le score reste enregistré
   }
 }
 
