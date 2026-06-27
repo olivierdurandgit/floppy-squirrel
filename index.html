@@ -76,6 +76,23 @@
     transition: background .15s;
   }
   #pauseBtn:hover { background: rgba(0,0,0,.65); }
+  #soundBtn {
+    position: absolute;
+    top: 10px;
+    right: 58px;
+    z-index: 5;
+    width: 40px;
+    height: 40px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(0,0,0,.45);
+    color: #fff;
+    font-size: 18px;
+    line-height: 40px;
+    cursor: pointer;
+    padding: 0;
+  }
+  #soundBtn:hover { background: rgba(0,0,0,.65); }
   #godBtn {
     position: absolute;
     bottom: 10px;
@@ -294,6 +311,7 @@
 <div id="wrap">
   <canvas id="game" width="400" height="600"></canvas>
   <button id="pauseBtn" aria-label="Pause">⏸</button>
+  <button id="soundBtn" aria-label="Son">🔊</button>
   <button id="godBtn">🛡️ Invincible : OFF</button>
   <button id="batBtn">🏏 Frapper</button>
   <button id="homeBtn">🏠 Accueil</button>
@@ -333,8 +351,70 @@ const batBtn = document.getElementById('batBtn');
 const codePanel = document.getElementById('codePanel');
 const codeDisplay = document.getElementById('codeDisplay');
 const codeKeys = document.getElementById('codeKeys');
+const soundBtn = document.getElementById('soundBtn');
 const W = canvas.width, H = canvas.height;
 let paused = false;
+
+// --- Audio (Web Audio API, sons générés, sans fichier) ---
+let audioCtx = null, musicGain = null, sfxGain = null, musicTimer = null, melodyIdx = 0;
+let soundOn = true;
+function initAudio() {
+  if (audioCtx) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  audioCtx = new AC();
+  musicGain = audioCtx.createGain(); musicGain.gain.value = 0.10; musicGain.connect(audioCtx.destination);
+  sfxGain = audioCtx.createGain(); sfxGain.gain.value = 0.22; sfxGain.connect(audioCtx.destination);
+}
+function tone(freq, dur, type, dest, vol) {
+  if (!audioCtx || !soundOn || !freq) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = type || 'square'; o.frequency.value = freq;
+  o.connect(g); g.connect(dest || sfxGain);
+  const t = audioCtx.currentTime;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(vol || 1, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.start(t); o.stop(t + dur + 0.03);
+}
+function slide(f1, f2, dur, type) {
+  if (!audioCtx || !soundOn) return;
+  const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+  o.type = type || 'sawtooth';
+  const t = audioCtx.currentTime;
+  o.frequency.setValueAtTime(f1, t);
+  o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  o.connect(g); g.connect(sfxGain);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(1, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.start(t); o.stop(t + dur + 0.03);
+}
+// bruitages
+function sfxFlap()  { tone(520, 0.08, 'square', sfxGain, 0.7); }
+function sfxPick()  { tone(880, 0.09, 'triangle', sfxGain, 0.8); tone(1320, 0.08, 'triangle', sfxGain, 0.5); }
+function sfxHit()   { tone(150, 0.18, 'sawtooth', sfxGain, 0.9); }
+function sfxDeath() { slide(440, 90, 0.6, 'sawtooth'); }
+function sfxPortal(){ slide(300, 1200, 0.4, 'square'); }
+function sfxSwing() { tone(260, 0.06, 'square', sfxGain, 0.8); tone(180, 0.1, 'square', sfxGain, 0.6); }
+function sfxLife()  { tone(660, 0.1, 'triangle', sfxGain, 0.8); tone(990, 0.12, 'triangle', sfxGain, 0.7); }
+// musique : petite boucle entraînante
+const MELODY = [
+  330, 0, 392, 440, 0, 392, 330, 0,
+  294, 330, 392, 0, 440, 392, 330, 0,
+  349, 0, 440, 523, 0, 440, 349, 0,
+  392, 440, 392, 0, 330, 294, 330, 0
+];
+function startMusic() {
+  if (!audioCtx || !soundOn) return;
+  stopMusic();
+  musicTimer = setInterval(() => {
+    const f = MELODY[melodyIdx % MELODY.length];
+    melodyIdx++;
+    if (f) { tone(f, 0.2, 'triangle', musicGain, 1); if (melodyIdx % 4 === 0) tone(f / 2, 0.18, 'sine', musicGain, 0.8); }
+  }, 230);
+}
+function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }
 // triche : le code 1203 déverrouille le bouton d'invincibilité
 let cheatUnlocked = false;
 let godMode = false;
@@ -528,7 +608,7 @@ function reset() {
   smallColorIdx = 0;
   score = startScore;   // 0 normalement, ou le score choisi via le code 6365
   frame = 0;
-  lives = MAX_LIVES;
+  lives = MAX_LIVES + (bigHead ? 1 : 0);   // tête rouge → 4 cœurs au départ
   invincibleUntil = 0;
   nextLifeAt = LIFE_EVERY;
   speed = BASE_SPEED;
@@ -748,6 +828,10 @@ function spawnObject() {
 }
 
 function flap() {
+  // démarre l'audio + la musique à la première interaction
+  initAudio();
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  if (soundOn && !musicTimer) startMusic();
   if (paused) return;                  // pas de saut quand le jeu est en pause
   if (state === 'dead') {
     // verrou : on ne peut pas rejouer pendant 1 s après la mort
@@ -761,6 +845,7 @@ function flap() {
     return;
   } else if (state === 'play') {
     bird.vy = FLAP;
+    sfxFlap();
     // chaque saut fait rétrécir l'écureuil jusqu'à sa taille normale
     if (birdScale > 1) birdScale = Math.max(1, birdScale - SHRINK_PER_FLAP);
   }
@@ -851,6 +936,7 @@ function takeHit() {
   lives--;
   invincibleUntil = Date.now() + HIT_INVINCIBLE;
   if (lives <= 0) { lives = 0; die('smoke'); }
+  else sfxHit();
 }
 
 // Le bouclier encaisse un coup (utilisation) ; petite invincibilité pour ne pas le vider d'un coup
@@ -864,6 +950,7 @@ const STRIKE_REACH = 70;
 function swingBat() {
   if (gameMode !== 'dodge' || batUses <= 0 || state !== 'play' || paused) return;
   swingUntil = Date.now() + 250;   // animation de frappe
+  sfxSwing();
   const er = bird.r * birdScale;
   let hitAny = false;
   for (let i = objects.length - 1; i >= 0; i--) {
@@ -881,6 +968,7 @@ function swingBat() {
 function die(cause) {
   state = 'dead';
   deadAt = Date.now();   // verrou anti-clic de 1 s après la mort
+  sfxDeath();
   // score non enregistré si une triche a été utilisée (code tapé, invincibilité, vitesse boostée)
   const cheated = cheatUsed || godMode || cheatSpeed > 1 || startScore > 0 || batUnbreakable;
   if (!cheated && score > getBest()) {
@@ -956,6 +1044,7 @@ function update() {
       if (Math.hypot(bt.x - bird.x, bt.y - bird.y) < bird.r * birdScale + BAT_R + 8) {
         bt.taken = true;
         if (!batUnbreakable) batUses += BAT_USES;   // les coups s'additionnent
+        sfxPick();
       }
     }
     bats = bats.filter(bt => !bt.taken && bt.x + BAT_R > -10);
@@ -1018,6 +1107,7 @@ function update() {
       b.captured = true;
       followers.push({ body: b.body, stroke: b.stroke }); // garde sa couleur
       score += (gameMode === 'dodge') ? 1 : 5;   // écureuil : 1 pt en chasse aux renards, 5 en colonnes
+      sfxPick();
     }
   }
   freeBirds = freeBirds.filter(b => !b.captured && b.x + SMALL_R > -10);
@@ -1029,6 +1119,7 @@ function update() {
     if (Math.hypot(m.x - bird.x, m.y - bird.y) < bird.r + MUSH_R + 8) {
       m.eaten = true;
       tripUntil = Date.now() + TRIP_MS;   // couleurs partout pendant TRIP_MS
+      sfxPick();
     }
   }
   mushrooms = mushrooms.filter(m => !m.eaten && m.x + MUSH_R > -10);
@@ -1041,6 +1132,7 @@ function update() {
       wgt.taken = true;
       // l'écureuil grossit : ralentit + alourdit, puis revient à la normale en maigrissant (sauts)
       birdScale = Math.min(MAX_SCALE, birdScale + BURGER_GROW);
+      sfxPick();
     }
   }
   weights = weights.filter(wgt => !wgt.taken && wgt.x + BOULET_R > -10);
@@ -1053,6 +1145,7 @@ function update() {
       sh.taken = true;
       shieldHits = SHIELD_USES;          // bouclier à 2 utilisations…
       shieldUntil = Date.now() + SHIELD_MS; // …et 4 s max
+      sfxPick();
     }
   }
   shields = shields.filter(sh => !sh.taken && sh.x + SHIELD_R > -10);
@@ -1067,6 +1160,7 @@ function update() {
       flipped = (gameMode === 'dodge') ? false : st[1];   // pas d'inversion haut/bas en mode Objets
       portal = null;
       portalFlashUntil = Date.now() + PORTAL_FLASH_MS;
+      sfxPortal();
     }
   }
 
@@ -1074,6 +1168,7 @@ function update() {
   while (score >= nextLifeAt) {
     lives++;
     nextLifeAt += LIFE_EVERY;
+    sfxLife();
   }
 
   // Tous les 4 écureuils sauvés : nouveau décor qui glisse (jamais 2 fois le même d'affilée)
@@ -2514,8 +2609,7 @@ function enterCode(d) {
     batUses = batUnbreakable ? 999 : 0;
     cheatUsed = true;
   } else if (codeBuffer === '4562') {
-    bigHead = !bigHead;                     // grosse tête rouge
-    lives++;                                // ajoute une vie à chaque saisie
+    bigHead = !bigHead;                     // grosse tête rouge → 4 cœurs au départ
     // NON compté comme triche : le score reste enregistré
   }
 }
@@ -2545,6 +2639,17 @@ function godHandler(e) {
 }
 godBtn.addEventListener('mousedown', godHandler);
 godBtn.addEventListener('touchstart', godHandler, { passive: false });
+
+// bouton son (musique + bruitages)
+function soundHandler(e) {
+  e.preventDefault(); e.stopPropagation();
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '🔊' : '🔇';
+  if (soundOn) { initAudio(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); startMusic(); }
+  else stopMusic();
+}
+soundBtn.addEventListener('mousedown', soundHandler);
+soundBtn.addEventListener('touchstart', soundHandler, { passive: false });
 
 // bouton batte (frappe manuelle)
 function batHandler(e) { e.preventDefault(); e.stopPropagation(); swingBat(); }
