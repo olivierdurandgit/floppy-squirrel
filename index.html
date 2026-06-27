@@ -398,6 +398,7 @@ function sfxDeath() { slide(440, 90, 0.6, 'sawtooth'); }
 function sfxPortal(){ slide(300, 1200, 0.4, 'square'); }
 function sfxSwing() { tone(260, 0.06, 'square', sfxGain, 0.8); tone(180, 0.1, 'square', sfxGain, 0.6); }
 function sfxLife()  { tone(660, 0.1, 'triangle', sfxGain, 0.8); tone(990, 0.12, 'triangle', sfxGain, 0.7); }
+function sfxEat()   { tone(200, 0.07, 'square', sfxGain, 0.6); setTimeout(() => tone(140, 0.09, 'square', sfxGain, 0.6), 70); } // miam-miam
 // musique : petite boucle entraînante
 const MELODY = [
   330, 0, 392, 440, 0, 392, 330, 0,
@@ -409,9 +410,18 @@ function startMusic() {
   if (!audioCtx || !soundOn) return;
   stopMusic();
   musicTimer = setInterval(() => {
-    const f = MELODY[melodyIdx % MELODY.length];
+    let f = MELODY[melodyIdx % MELODY.length];
     melodyIdx++;
-    if (f) { tone(f, 0.2, 'triangle', musicGain, 1); if (melodyIdx % 4 === 0) tone(f / 2, 0.18, 'sine', musicGain, 0.8); }
+    if (!f) return;
+    if (Date.now() < tripUntil) {
+      // effet champignon : musique déformée (pitch tordu + timbre saturé)
+      f *= 1 + Math.sin(melodyIdx * 1.7) * 0.28;
+      tone(f, 0.26, 'sawtooth', musicGain, 1);
+      tone(f * 1.01, 0.26, 'sawtooth', musicGain, 0.6);   // léger désaccord
+    } else {
+      tone(f, 0.2, 'triangle', musicGain, 1);
+      if (melodyIdx % 4 === 0) tone(f / 2, 0.18, 'sine', musicGain, 0.8);
+    }
   }, 230);
 }
 function stopMusic() { if (musicTimer) { clearInterval(musicTimer); musicTimer = null; } }
@@ -1119,7 +1129,7 @@ function update() {
     if (Math.hypot(m.x - bird.x, m.y - bird.y) < bird.r + MUSH_R + 8) {
       m.eaten = true;
       tripUntil = Date.now() + TRIP_MS;   // couleurs partout pendant TRIP_MS
-      sfxPick();
+      sfxEat();
     }
   }
   mushrooms = mushrooms.filter(m => !m.eaten && m.x + MUSH_R > -10);
@@ -1132,7 +1142,7 @@ function update() {
       wgt.taken = true;
       // l'écureuil grossit : ralentit + alourdit, puis revient à la normale en maigrissant (sauts)
       birdScale = Math.min(MAX_SCALE, birdScale + BURGER_GROW);
-      sfxPick();
+      sfxEat();
     }
   }
   weights = weights.filter(wgt => !wgt.taken && wgt.x + BOULET_R > -10);
