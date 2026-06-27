@@ -920,9 +920,15 @@ function startCountdown() {
   state = 'countdown';
   countdownStart = Date.now();
   overlay.classList.remove('hidden');
+  const intro = (gameMode === 'dodge')
+    ? `<p>🦊 Évite les <b>renards</b> (−1 ❤️ au contact)</p>
+       <p>🏏 Ramasse des <b>battes</b> puis appuie sur <b>Frapper</b> (ou B) pour les assommer (+5)</p>
+       <p>🐿️ Attrape les écureuils (+1)</p>`
+    : `<p>Évite les obstacles, franchis les passages !</p>`;
   overlay.innerHTML = `
     <h1>Prêt ?</h1>
     <div class="big" id="countNum">3</div>
+    ${intro}
     <p>La partie démarre…</p>`;
 }
 
